@@ -54,12 +54,10 @@ int main(int argc, char* argv[]) {
 		}
 		if( vm.count("out") )
 			out=vm["out"].as<std::string>();
-		/* Uncomment this once we have something we need to save
 		else {
 			std::cout << "No file to save to! See --help.\n";
 			return 1;
 		}
-		*/
 	}
 
 	// the string to store the unparsed file into
@@ -92,7 +90,14 @@ void readfile(const std::string& file, std::string& data) {
 }
 
 void writefile(const std::string &writefile) {
+	using namespace std;
+	ofstream of(writefile.c_str(), ofstream::binary);
 
+	// Write the entire file at once
+	// IMGSIZE*2 because this writes in bytes, and memory is a short array
+	of.write((char*)memory,IMGSIZE*2);
+
+	of.close();
 }
 
 void parse(const std::string& assembly) {
