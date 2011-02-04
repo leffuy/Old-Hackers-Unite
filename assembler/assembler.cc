@@ -15,6 +15,12 @@ INSTRSIZE memory[IMGSIZE];
 // or placed directly into memory somewhere
 std::vector<std::pair<std::string,INSTRSIZE> > reservedwords;
 
+// Count the total number of instructions in reserved words
+unsigned int totalinstrs;
+
+// list of labels and calculated location
+std::vector<std::pair<std::string,INSTRSIZE> > labels;
+
 // Reads the file into data
 void readfile(const std::string& file, std::string& data);
 
@@ -115,13 +121,41 @@ void writefile(const std::string &writefile) {
 
 void firstpass(const std::string& assembly) {
 	using namespace std;
-	istringstream is(assembly, stringstream::in | stringstream::out);
+	stringstream is(assembly, stringstream::in | stringstream::out);
 
 	string token;
+	unsigned long int instrcnt = 0;
 
 	// Read each token
 	while(is.good()) {
 		is >> token;
+
+		if(token.find(':',0) != -1) {
+			string nexttoken;
+			if(is.good()) {
+				is >> nexttoken;
+			}
+			// Are we on a line with a new instruction?
+			for(unsigned int i = 0; i < totalinstrs; ++i) {
+				if(nexttoken.compare(reservedwords[i].first) == 0) // matching instruction?
+					++instrcnt;
+			}
+
+			// add label
+			labels.push_back(pair<string,INSTRSIZE>(token.substr(0,token.length()-1),instrcnt));
+	
+			// Reset things so we can continue safely
+			--instrcnt; 
+			is << nexttoken;
+
+		}
+		else {
+			// Count instructions
+			for(unsigned int i = 0; i < totalinstrs; ++i) {
+				if(token.compare(reservedwords[i].first) == 0) // matching instruction?
+					++instrcnt;
+			}
+		}
 	}
 }
 
@@ -130,10 +164,31 @@ void secondpass(const std::string& assembly) {
 	istringstream is(assembly, stringstream::in | stringstream::out);
 
 	string token;
+	unsigned long int instrcnt = 0;
 
 	// Read each token
 	while(is.good()) {
 		is >> token;
+		
+		if(token.find(':',0) != -1); // In the second pass we just want to ignore labels
+		else {
+			// We use this to help detect invalid code
+			unsigned long int oldcount = instrcnt;
+
+			// Find instruction and handle it
+			for(unsigned int i = 0; i < totalinstrs; ++i) {
+				if(token.compare(reservedwords[i].first) == 0) { // matching instruction?
+					++instrcnt;
+
+					// Translate instruction into machine code
+				}
+			}
+			// Incorrect code! (or a bug above)
+			if(oldcount == instrcnt) {
+				cout << "Error: " << token << "is not an instruction!" << endl;
+				exit(1);
+			}
+		}
 	}
 }
 
@@ -168,7 +223,6 @@ void createreservedwords() {
 
 	// memory things
 	rw.push_back(pair<string,INSTRSIZE>("LW",1<<15));
-	cout << rw.back().second << endl;
 	rw.push_back(pair<string,INSTRSIZE>("SW",5<<13));
 
 	// branchy things
@@ -179,6 +233,7 @@ void createreservedwords() {
 
 	//rw.push_back(pair<string,INSTRSIZE>("",7<<13)); // RESERVED
 
+	totalinstrs = rw.size();
 //--- REGISTERS ---//
 	// These are not shifted since we have to shift them
 	// based on order and position of instr arguments
