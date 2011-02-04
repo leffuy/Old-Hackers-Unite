@@ -1,5 +1,5 @@
-LINKER		= g++-4.5.0
-CXX			= g++-4.5.0
+LINKER		= g++
+CXX			= g++
 
 CXXFLAGS		= -c -g -O2 -Wall -pedantic 
 LFLAGS		= -lboost_program_options 
