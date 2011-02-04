@@ -1,24 +1,34 @@
 #include <iostream>
 #include <sstream>
 #include <fstream>
+#include <utility>
 
 #include <boost/program_options.hpp>
 
 // Storage for the memory image we want to write (I think this is the right size?)
 #define IMGSIZE 4096
-short memory[IMGSIZE];
+#define INSTRSIZE unsigned short
+INSTRSIZE memory[IMGSIZE];
 
-// A resizable array for the tokens after parsing the file
-std::vector<short> tokens;
+// list of reserved words paired with value
+// if value -1, then it is not an instruction and must be translated to one
+// or placed directly into memory somewhere
+std::vector<std::pair<std::string,INSTRSIZE> > reservedwords;
 
 // Reads the file into data
 void readfile(const std::string& file, std::string& data);
 
-// Parses the string into tokens
-void parse(const std::string& assembly);
-
 // Writes memory to a file
 void writefile(const std::string& outfile);
+
+// Creates all the labels
+// What else??
+void firstpass(const std::string& assembly);
+
+// Translates into machine code
+void secondpass(const std::string& assembly);
+
+void createreservedwords();
 
 int main(int argc, char* argv[]) {
 
@@ -60,11 +70,14 @@ int main(int argc, char* argv[]) {
 		}
 	}
 
+	createreservedwords();
+
 	// the string to store the unparsed file into
 	std::string assembly;
 	readfile(file,assembly);
 
-	parse(assembly);
+	firstpass(assembly);
+	secondpass(assembly);
 
 	writefile(out);
 }
@@ -100,6 +113,100 @@ void writefile(const std::string &writefile) {
 	of.close();
 }
 
-void parse(const std::string& assembly) {
-	
+void firstpass(const std::string& assembly) {
+	using namespace std;
+	istringstream is(assembly, stringstream::in | stringstream::out);
+
+	string token;
+
+	// Read each token
+	while(is.good()) {
+		is >> token;
+	}
+}
+
+void secondpass(const std::string& assembly) {
+	using namespace std;
+	istringstream is(assembly, stringstream::in | stringstream::out);
+
+	string token;
+
+	// Read each token
+	while(is.good()) {
+		is >> token;
+	}
+}
+
+void createreservedwords() {
+	using namespace std;
+	// save some typing
+	vector<pair<string,INSTRSIZE> > &rw = reservedwords;
+
+	rw.push_back(pair<string,INSTRSIZE>(".ORG",-1));
+	rw.push_back(pair<string,INSTRSIZE>(".DATA",-1));
+
+	// Convert all these to base 16 or base 8?
+
+//--- INSTRUCTIONS ---//
+	// ALU things
+	rw.push_back(pair<string,INSTRSIZE>("ADD",0));
+	rw.push_back(pair<string,INSTRSIZE>("SUB",1));
+	rw.push_back(pair<string,INSTRSIZE>("LT",4));
+	rw.push_back(pair<string,INSTRSIZE>("LE",5));
+	rw.push_back(pair<string,INSTRSIZE>("AND",8));
+	rw.push_back(pair<string,INSTRSIZE>("OR",9));
+	rw.push_back(pair<string,INSTRSIZE>("XOR",10));
+	rw.push_back(pair<string,INSTRSIZE>("NAND",12));
+	rw.push_back(pair<string,INSTRSIZE>("NOR",13));
+	rw.push_back(pair<string,INSTRSIZE>("NXOR",14));
+
+	rw.push_back(pair<string,INSTRSIZE>("ADDI",1<<13));
+	rw.push_back(pair<string,INSTRSIZE>("SUBI",-1));
+	rw.push_back(pair<string,INSTRSIZE>("NOT",-1));
+	rw.push_back(pair<string,INSTRSIZE>("GT",-1));
+	rw.push_back(pair<string,INSTRSIZE>("GE",-1));
+
+	// memory things
+	rw.push_back(pair<string,INSTRSIZE>("LW",1<<15));
+	cout << rw.back().second << endl;
+	rw.push_back(pair<string,INSTRSIZE>("SW",5<<13));
+
+	// branchy things
+	rw.push_back(pair<string,INSTRSIZE>("BEQ",1<<14));
+	rw.push_back(pair<string,INSTRSIZE>("BNE",3<<13));
+	rw.push_back(pair<string,INSTRSIZE>("JMP",3<<14));
+	rw.push_back(pair<string,INSTRSIZE>("B",-1));
+
+	//rw.push_back(pair<string,INSTRSIZE>("",7<<13)); // RESERVED
+
+//--- REGISTERS ---//
+	// These are not shifted since we have to shift them
+	// based on order and position of instr arguments
+	// Assumed that they were just numbered 0-7
+	// Use rw.back().second to create aliases
+	rw.push_back(pair<string,INSTRSIZE>("R0",0));
+	rw.push_back(pair<string,INSTRSIZE>("A0",rw.back().second));
+
+	rw.push_back(pair<string,INSTRSIZE>("R1",1));
+	rw.push_back(pair<string,INSTRSIZE>("A1",rw.back().second));
+
+	rw.push_back(pair<string,INSTRSIZE>("R2",2));
+	rw.push_back(pair<string,INSTRSIZE>("A2",rw.back().second));
+
+	rw.push_back(pair<string,INSTRSIZE>("R3",3));
+	rw.push_back(pair<string,INSTRSIZE>("A3",rw.back().second));
+	rw.push_back(pair<string,INSTRSIZE>("RV",rw.back().second));
+
+	rw.push_back(pair<string,INSTRSIZE>("R4",4));
+	rw.push_back(pair<string,INSTRSIZE>("RA",rw.back().second));
+
+	rw.push_back(pair<string,INSTRSIZE>("R5",5));
+	rw.push_back(pair<string,INSTRSIZE>("GP",rw.back().second));
+
+	// This is for system use, so if we get a hit should we error?
+	rw.push_back(pair<string,INSTRSIZE>("R6",6));
+
+	rw.push_back(pair<string,INSTRSIZE>("R7",7));
+	rw.push_back(pair<string,INSTRSIZE>("SP",rw.back().second));
+
 }

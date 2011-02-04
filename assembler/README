@@ -3,7 +3,8 @@ Dependencies:
 
 The general plan I had for the design of this:
 	1. Read file in as one chunk
-	2. Parse resulting data
+	2. Read through data, any labels are registered into a list
+	3. Read through the data and translate into instructions
 		1. Use a stringstream to tokenize for us and convert integers for us
 		2. When stringstream gives us back a string
 			1. Match that string to a token from our language
@@ -15,3 +16,5 @@ The general plan I had for the design of this:
 What's done:
 	Reading CLI arguments
 	Reading the file
+	Writing output file
+	Reading tokens from data (no semantics or syntax done)
