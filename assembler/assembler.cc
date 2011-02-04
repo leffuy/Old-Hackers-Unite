@@ -5,16 +5,20 @@
 #include <boost/program_options.hpp>
 
 // Storage for the memory image we want to write (I think this is the right size?)
-char memory[4096];
+#define IMGSIZE 4096
+short memory[IMGSIZE];
 
 // A resizable array for the tokens after parsing the file
-//std::vector tokens;
+std::vector<short> tokens;
 
 // Reads the file into data
 void readfile(const std::string& file, std::string& data);
 
 // Parses the string into tokens
 void parse(const std::string& assembly);
+
+// Writes memory to a file
+void writefile(const std::string& outfile);
 
 int main(int argc, char* argv[]) {
 
@@ -64,6 +68,7 @@ int main(int argc, char* argv[]) {
 
 	parse(assembly);
 
+	writefile(out);
 }
 
 void readfile(const std::string& file, std::string& data) {
@@ -86,7 +91,9 @@ void readfile(const std::string& file, std::string& data) {
 	data.assign(buf,length);
 }
 
+void writefile(const std::string &writefile) {
 
+}
 
 void parse(const std::string& assembly) {
 	
