@@ -1,0 +1,17 @@
+Dependencies:
+	boost::program_options - comes with any boost installation afaik
+
+The general plan I had for the design of this:
+	1. Read file in as one chunk
+	2. Parse resulting data
+		1. Use a stringstream to tokenize for us and convert integers for us
+		2. When stringstream gives us back a string
+			1. Match that string to a token from our language
+			2. Do whatever that token requires of us, checking for syntactic correctness
+			3. Convert all this to the right binary for the processor
+		3. Place into the memory image array
+	3. Write memory image array
+
+What's done:
+	Reading CLI arguments
+	Reading the file
