@@ -180,7 +180,12 @@ void secondpass(const std::string& assembly) {
 				if(token.compare(reservedwords[i].first) == 0) { // matching instruction?
 					++instrcnt;
 
-					// Translate instruction into machine code
+					INSTRSIZE instr = reservedwords[i].second;
+
+					// Next comes a src register
+					if(is.good())
+						is >> token;
+
 				}
 			}
 			// Incorrect code! (or a bug above)
@@ -204,6 +209,7 @@ void createreservedwords() {
 
 //--- INSTRUCTIONS ---//
 	// ALU things
+	// No shifting needed since primary op is 000
 	rw.push_back(pair<string,INSTRSIZE>("ADD",0));
 	rw.push_back(pair<string,INSTRSIZE>("SUB",1));
 	rw.push_back(pair<string,INSTRSIZE>("LT",4));
