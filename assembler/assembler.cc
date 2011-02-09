@@ -114,14 +114,15 @@ void writefile(const std::string &writefile) {
 
 	// Required mif headers. see http://www.altera.com/support/examples/verilog/ver_ram.html#mif
 	of << "WIDTH = 16;\n";
-	of << "DEPTH = 256;\n";
-	of << "ADDRESS_RADIX = BIN;\n";		// Dunno if this is BIN or BINARY
-	of << "DATA_RADIX = BIN;\n";
+	of << "DEPTH = 4096;\n";
+	of << "ADDRESS_RADIX = DEC;\n";		// signed decimal
+	of << "DATA_RADIX = DEC;\n";	// signed decimal with WIDTH bits
 
 	of << "CONTENT BEGIN\n";
-	// Write the entire file at once
-	// IMGSIZE*2 because this writes in bytes, and memory is a short array
-	of.write((char*)memory,IMGSIZE*2);	// Will need to change this to proper format later
+
+	for(int i = 0; i < IMGSIZE; ++i)
+		of << '\t' << i << "\t:\t" << memory[i] << ";\n";
+
 	of << "END;\n";
 
 	of.close();
@@ -199,7 +200,7 @@ void secondpass(const std::string& assembly) {
 			// Incorrect code! (or a bug above)
 			if(oldcount == instrcnt) {
 				cout << "Error: " << token << " is not an instruction!" << endl;
-				exit(1);
+				//exit(1);
 			}
 		}
 	}
