@@ -113,14 +113,14 @@ void writefile(const std::string &writefile) {
 	ofstream of(writefile.c_str(), ofstream::binary);
 
 	// Required mif headers. see http://www.altera.com/support/examples/verilog/ver_ram.html#mif
-	of << "WIDTH = 16;\n";
-	of << "DEPTH = 4096;\n";
-	of << "ADDRESS_RADIX = DEC;\n";		// signed decimal
-	of << "DATA_RADIX = DEC;\n";	// signed decimal with WIDTH bits
+	of << "WIDTH = 16;\n"; // Change if INSTRSIZE changes
+	of << "DEPTH = " << IMGSIZE <<" ;\n";
+	of << "ADDRESS_RADIX = UNS;\n";		// unsigned decimal
+	of << "DATA_RADIX = UNS;\n";	// unsigned decimal with WIDTH bits
 
 	of << "CONTENT BEGIN\n";
 
-	for(int i = 0; i < IMGSIZE; ++i)
+	for(unsigned int i = 0; i < IMGSIZE; ++i)
 		of << '\t' << i << "\t:\t" << memory[i] << ";\n";
 
 	of << "END;\n";
