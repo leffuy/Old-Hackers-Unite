@@ -1,0 +1,56 @@
+8 total registers
+	R0..R3 	= A0..A3
+	R3/A3	= RV (caller saved)
+	R4	= RA (caller saved)
+	R5	= GP (callee saved)
+	R6	= reserved
+	R7	= SP (grows down)
+16b instruction word size
+16b register size
+Byte-addressed. Word address is multiple of 2 (increment PC by 2)
+
+Primary OP codes:
+	000	ALU
+	001	ADDI
+	010	BEQ
+	011	BNE
+	100	LW
+	101	SW
+	110	JMP
+	111	resrv
+
+Secondary OP codes:
+	0000	ADD, JRL
+	0001	SUB
+	0100	LT
+	0101	LE
+	1000	AND
+	1001	OR
+	1010	XOR
+	1100	NAND
+	1101	NOR
+	1110	NXOR
+
+Bit Allocation:
+	op1	= 15:13
+	reg1	= 12:10
+	reg2	= 9:7
+	imm	= 6:0
+	reg3	= 6:4
+	op2	= 3:0
+
+Instruction format (from MSB to LSB):
+	{op1,rsrc1,rsrc2,rdst,op2}	op1 = ALU
+					op2 = ADD, SUB, LT, LE, AND, OR, XOR, NAND, NOR, NXOR
+					ALL:		rdst = rsrc1 op2 rsrc2
+
+	{op1,rsrc,rdst,imm}		op1 = ADDI, LW
+					ADDI:		rdst = rsrc op sxt(imm)
+					LW:		rdst = mem[rsrc + sxt(imm)]
+
+	{op1,rsrc1,rsrc2,imm}		op1 = BEQ, BNE, SW
+					BEQ, BNE:	if(rsrc1 cmp rsrc2) PC=PC+4+(sxt(imm)*2)
+
+	{op1,rsrc1,000,rdst,op2}	op1 = JMP
+					op2 = JRL
+					ALL:		rdst <= PC+2; PC<=rsrc1
