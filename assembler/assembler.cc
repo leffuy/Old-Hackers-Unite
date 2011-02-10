@@ -172,10 +172,6 @@ void firstpass(const std::string& assembly) {
 					break;
 				}
 			}
-			if(i == reservedwords.size()) {
-				cout << "Error: " << token << " not recognized!\n";
-				exit(1);
-			}
 		}
 	}
 
