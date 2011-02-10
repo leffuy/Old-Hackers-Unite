@@ -172,6 +172,8 @@ void firstpass(const std::string& assembly) {
 	}
 }
 
+// This could probably divided up into multiple functions, but I'm lazy right now
+// I'll do it later if things become much more complicated
 void secondpass(const std::string& assembly) {
 	using namespace std;
 	istringstream is(assembly, stringstream::in | stringstream::out);
@@ -182,6 +184,8 @@ void secondpass(const std::string& assembly) {
 	// Read each token
 	while(is.good()) {
 		is >> token;
+		if(!is.good())
+			break;
 		
 		if(token.find(';',0) == 0) { // Found a comment
 			if(is.good())
@@ -216,10 +220,43 @@ void secondpass(const std::string& assembly) {
 
 					for(unsigned int j = 0; j < reservedwords.size(); ++j) {
 						if(reg.compare(reservedwords[j].first) == 0) {
-							instr = instr | reservedwords[j].second;
+							instr = instr | (reservedwords[j].second << 10);
 							break;
 						}
 					}
+
+					// Next comes a register
+					if(is.good())
+						is >> token;
+					else
+						cout << "Error: Incomplete file?" << endl;
+
+					// All registers are strings of length 2
+					reg = token.substr(0,2);
+
+					for(unsigned int j = 0; j < reservedwords.size(); ++j) {
+						if(reg.compare(reservedwords[j].first) == 0) {
+							instr = instr | (reservedwords[j].second << 7);
+							break;
+						}
+					}
+					
+					// Next comes a register
+					if(is.good())
+						is >> token;
+					else
+						cout << "Error: Incomplete file?" << endl;
+
+					// All registers are strings of length 2
+					reg = token.substr(0,2);
+
+					for(unsigned int j = 0; j < reservedwords.size(); ++j) {
+						if(reg.compare(reservedwords[j].first) == 0) {
+							instr = instr | (reservedwords[j].second << 4);
+							break;
+						}
+					}
+
 
 					cout << hex << instr << endl;
 
