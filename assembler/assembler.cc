@@ -139,7 +139,11 @@ void firstpass(const std::string& assembly) {
 	while(is.good()) {
 		is >> token;
 
-		if(token.find(':',0) != -1) {
+		if(token.find(';',0) == 0) { // Found a comment
+			if(is.good())
+				getline(is,token);
+		}
+		else if(token.find(':',0) != -1) {
 			string nexttoken;
 			if(is.good()) {
 				is >> nexttoken;
@@ -179,7 +183,11 @@ void secondpass(const std::string& assembly) {
 	while(is.good()) {
 		is >> token;
 		
-		if(token.find(':',0) != -1); // In the second pass we just want to ignore labels
+		if(token.find(';',0) == 0) { // Found a comment
+			if(is.good())
+				getline(is,token);
+		}
+		else if(token.find(':',0) != -1); // In the second pass we just want to ignore labels
 		else {
 			// We use this to help detect invalid code
 			unsigned long int oldcount = instrcnt;
@@ -189,11 +197,32 @@ void secondpass(const std::string& assembly) {
 				if(token.compare(reservedwords[i].first) == 0) { // matching instruction?
 					++instrcnt;
 
+					string instruction = reservedwords[i].first;
 					INSTRSIZE instr = reservedwords[i].second;
+					if(instr == -1) { // We found a psuedo-instruction or something else
+						// For the time being, just ignore the line
+						if(is.good())
+							getline(is,token);
+					}
 
-					// Next comes a src register
+					// Next comes a register
 					if(is.good())
 						is >> token;
+					else
+						cout << "Error: Incomplete file?" << endl;
+
+					// All registers are strings of length 2
+					string reg = token.substr(0,2);
+
+					for(unsigned int j = 0; j < reservedwords.size(); ++j) {
+						if(reg.compare(reservedwords[j].first) == 0) {
+							instr = instr | reservedwords[j].second;
+							break;
+						}
+					}
+
+					cout << hex << instr << endl;
+
 
 				}
 			}
@@ -244,6 +273,7 @@ void createreservedwords() {
 	rw.push_back(pair<string,INSTRSIZE>("BEQ",1<<14));
 	rw.push_back(pair<string,INSTRSIZE>("BNE",3<<13));
 	rw.push_back(pair<string,INSTRSIZE>("JMP",3<<14));
+	rw.push_back(pair<string,INSTRSIZE>("JRL",rw.back().second)); // secondary op is 0
 	rw.push_back(pair<string,INSTRSIZE>("B",-1));
 
 	//rw.push_back(pair<string,INSTRSIZE>("",7<<13)); // RESERVED
