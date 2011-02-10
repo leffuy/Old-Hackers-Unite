@@ -133,43 +133,55 @@ void firstpass(const std::string& assembly) {
 	stringstream is(assembly, stringstream::in | stringstream::out);
 
 	string token;
-	unsigned long int instrcnt = 0;
+	unsigned long int index;
+	unsigned int i;
+	unsigned long int address = 0;
 
 	// Read each token
 	while(is.good()) {
 		is >> token;
 
-		if(token.find(';',0) == 0) { // Found a comment
-			if(is.good())
-				getline(is,token);
-		}
-		else if(token.find(':',0) != -1) {
-			string nexttoken;
-			if(is.good()) {
-				is >> nexttoken;
+		if((index = token.find(':',0)) != -1) {
+			string label = token.substr(0,index);
+
+			if(!label.compare(".ORG")) {
+				is >> address;
+				continue;
 			}
-			// Are we on a line with a new instruction?
-			for(unsigned int i = 0; i < totalinstrs; ++i) {
-				if(nexttoken.compare(reservedwords[i].first) == 0) // matching instruction?
-					++instrcnt;
+			else if(!label.compare(".DATA")) {
+				is >> token;
+				++address;
+				continue;
 			}
 
-			// add label
-			labels.push_back(pair<string,INSTRSIZE>(token.substr(0,token.length()-1),instrcnt));
-	
-			// Reset things so we can continue safely
-			--instrcnt; 
-			is << nexttoken;
+			for(i = 0; i < labels.size(); ++i) {
+				if(!label.compare(labels[i].first))
+					break;
+			}
 
+			if(i == labels.size())	// If label has not been initialized before, add it to the labels vector
+				labels.push_back(pair<string,INSTRSIZE>(label,address));
 		}
 		else {
+
 			// Count instructions
-			for(unsigned int i = 0; i < totalinstrs; ++i) {
-				if(token.compare(reservedwords[i].first) == 0) // matching instruction?
-					++instrcnt;
+			for(i = 0; i < reservedwords.size(); ++i) {
+				if(token.compare(reservedwords[i].first) == 0) { // matching instruction?
+					if(i < totalinstrs)
+						++address;
+					break;
+				}
+			}
+			if(i == reservedwords.size()) {
+				cout << "Error: " << token << " not recognized!\n";
+				exit(1);
 			}
 		}
 	}
+
+	// Test label table
+	//for(unsigned int i = 0; i < labels.size(); i++)
+		//cout << labels[i].first << " " << labels[i].second << "\n";
 }
 
 // This could probably divided up into multiple functions, but I'm lazy right now
