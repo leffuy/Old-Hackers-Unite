@@ -7,6 +7,7 @@
 
 // Storage for the memory image we want to write (I think this is the right size?)
 #define IMGSIZE 4096
+#define IMGWIDTH 16
 #define INSTRSIZE unsigned short
 INSTRSIZE memory[IMGSIZE];
 
@@ -113,7 +114,7 @@ void writefile(const std::string &writefile) {
 	ofstream of(writefile.c_str(), ofstream::binary);
 
 	// Required mif headers. see http://www.altera.com/support/examples/verilog/ver_ram.html#mif
-	of << "WIDTH = 16;\n"; // Change if INSTRSIZE changes
+	of << "WIDTH = " << IMGWIDTH << ";\n"; // Change if INSTRSIZE changes
 	of << "DEPTH = " << IMGSIZE <<" ;\n";
 	of << "ADDRESS_RADIX = UNS;\n";		// unsigned decimal
 	of << "DATA_RADIX = UNS;\n";	// unsigned decimal with WIDTH bits
@@ -131,7 +132,6 @@ void writefile(const std::string &writefile) {
 void firstpass(const std::string& assembly) {
 	using namespace std;
 	stringstream is(assembly, stringstream::in | stringstream::out);
-
 	string token;
 	unsigned long int index;
 	unsigned int i;
@@ -141,41 +141,44 @@ void firstpass(const std::string& assembly) {
 	while(is.good()) {
 		is >> token;
 
-		if((index = token.find(':',0)) != -1) {
+		if(!token.rfind(';', 0)) {	// If token starts with a comment, move to next line
+			getline(is, token);
+		}
+		else if((index = token.find(':', 0)) != -1) {	// If token is a label, parse.
 			string label = token.substr(0,index);
 
 			if(!label.compare(".ORG")) {
-				is >> address;
-				continue;
+				is >> address;	// Grab address from next token
 			}
 			else if(!label.compare(".DATA")) {
 				is >> token;
-				++address;
-				continue;
+				++address;	// Leave a space for the data
 			}
+			else {			// Search for the label in labels
+				unsigned int size = labels.size();
+				for(i = 0; i < size; ++i) {
+					if(!label.compare(labels[i].first))
+						break;
+				}
 
-			for(i = 0; i < labels.size(); ++i) {
-				if(!label.compare(labels[i].first))
-					break;
+				if(i == size)	// If label has not been initialized before, add it to labels
+					labels.push_back(pair<string,INSTRSIZE>(label,address));
+				else
+					cout << "Warning: label " << label <<
+						" has been declared more than once. The first instance will be used.\n";
 			}
-
-			if(i == labels.size())	// If label has not been initialized before, add it to the labels vector
-				labels.push_back(pair<string,INSTRSIZE>(label,address));
 		}
-		else {
-
-			// Count instructions
-			for(i = 0; i < reservedwords.size(); ++i) {
+		else {	// Token is neither label nor comment. If it's an instruction, increase the address and continue.
+			for(i = 0; i < totalinstrs; ++i) {
 				if(token.compare(reservedwords[i].first) == 0) { // matching instruction?
-					if(i < totalinstrs)
-						++address;
+					++address;
 					break;
 				}
 			}
 		}
 	}
 
-	// Test label table
+	// Test label table (Can remove when done)
 	//for(unsigned int i = 0; i < labels.size(); i++)
 		//cout << labels[i].first << " " << labels[i].second << "\n";
 }
