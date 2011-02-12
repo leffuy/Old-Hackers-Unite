@@ -1,4 +1,4 @@
-module Proj1(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
+	module Proj1(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
   input  [9:0] SW;
   input  [3:0] KEY;
   input  CLOCK_50;
@@ -44,7 +44,7 @@ module Proj1(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
   wire MemEnable=(MAR[(DBITS-1):13]==4'b0);
   // Note: You need to write an assembler to get Sorter1.mif from the Sorter1.a16 file
   // Note: Meanwhile. you can test your design using the Test1.mif file (see Test1,a16 for its source code)
-  MEM #(.DBITS(DBITS),.ABITS(12),.MFILE("Sorter1.mif")) memory(
+  MEM #(.DBITS(DBITS),.ABITS(12),.MFILE("Test1.mif")) memory(
     .ADDR(MAR[12:1]),
     .DIN(memin),
     .DOUT(MemVal),.WE(WrMem&&MemEnable),.CLK(clk));
@@ -56,8 +56,13 @@ module Proj1(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
   assign thebus=DrMem?memout:BUSZ;
   
   // TODO: Create the IR (instruction register) and connect it to the bus
+  reg [(DBITS-1):0] IR;
   // TODO: Also create opcode1, rsrc1, rsrc2, etc. signals from the IR (needed by control unit)
-  
+  wire opcode1 = IR[15:13],
+		opcode2 = IR[3:0],
+		rsrc1 = IR[12:10],
+		rsrc2 = IR[9:7],
+		rdst = IR[6:4];
   // TODO: Create the registers unit and connect it to the bus
   
   // TODO: Create ALU unit and connect to the bus (using A and B registers for ALU input)
@@ -95,6 +100,8 @@ module Proj1(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
     S_ONE   ={{(S_BITS-1){1'b0}},1'b1},
     S_FETCH1=S_ZERO,				// 00000
     S_FETCH2=S_FETCH1+S_ONE,  // 00001
+	 S_FETCH3=S_FETCH2+S_ONE,  // 00010
+	 S_ALU1	=S_FETCH3+S_ONE;	// 00011
     // TODO: Add all the states you need for your state machine
 
   reg [(S_BITS-1):0] state=S_FETCH1,next_state;
@@ -109,6 +116,9 @@ module Proj1(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	             case(opcode1)
 					 OP1_ALU:  begin
 					             next_state=S_ALU1;
+								  end
+					endcase
+					end
     // TODO: Write the rest of the state machine
 	 endcase
   end
