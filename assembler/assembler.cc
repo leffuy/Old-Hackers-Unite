@@ -7,7 +7,7 @@
 
 // Storage for the memory image we want to write (I think this is the right size?)
 #define IMGSIZE 4096
-#define IMGWIDTH 16
+#define IMGWIDTH 16 // Change if INSTRSIZE changes
 #define INSTRSIZE unsigned short
 INSTRSIZE memory[IMGSIZE];
 
@@ -114,7 +114,7 @@ void writefile(const std::string &writefile) {
 	ofstream of(writefile.c_str(), ofstream::binary);
 
 	// Required mif headers. see http://www.altera.com/support/examples/verilog/ver_ram.html#mif
-	of << "WIDTH = " << IMGWIDTH << ";\n"; // Change if INSTRSIZE changes
+	of << "WIDTH = " << IMGWIDTH << ";\n"; 
 	of << "DEPTH = " << IMGSIZE <<" ;\n";
 	of << "ADDRESS_RADIX = UNS;\n";		// unsigned decimal
 	of << "DATA_RADIX = UNS;\n";	// unsigned decimal with WIDTH bits

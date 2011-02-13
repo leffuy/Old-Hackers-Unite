@@ -10,10 +10,12 @@
   // TODO: Create a PLL using the MegaWizard in order for this to work
   //Pll pll(.inclk0(CLOCK_50),.c0 (clk),.locked(lock));
   // Use this instead to step the processor using KEY[3]
-
+/*
   wire clk=KEY[3];
   wire lock=1'b1;
-
+*/
+  wire lock=1'b1;
+assign clk = CLOCK_50;
   // Create the processor's bus
   parameter DBITS=16;
   tri [(DBITS-1):0] thebus;
@@ -78,25 +80,31 @@
     .DOUT(MemVal),.WE(WrMem&&MemEnable),.CLK(clk));
   wire [(DBITS-1):0] memout=
 	 MemEnable?MemVal:
-	 // TODO: memout should get values of KEY (not !KEY) and SW when addresses of those devices are used
+	 (MAR[15:0]==16'hff0)? KEY[3:0]:
+	 (MAR[15:0]==16'hff2)? SW[9:0]:
 	 16'hDEAD;
   // Connect memory array output to bus (controlled by DrMem)
   assign thebus=DrMem?memout:BUSZ;
   
   // TODO: Create the IR (instruction register) and connect it to the bus
   reg [(DBITS-1):0] IR;
-  always @(posedge LdIR)
+  always @(posedge clk)
+	if(LdIR)
 		IR<=thebus;
   // TODO: Also create opcode1, rsrc1, rsrc2, etc. signals from the IR (needed by control unit)
   wire [2:0] opcode1 = IR[15:13],
 		rsrc1 = IR[12:10],
 		rsrc2 = IR[9:7],
 		rdst = IR[6:4];
-	wire [3:0] opcode2 = IR[3:0],
-		ALUfunc=opcode2;
+	wire [3:0] opcode2 = IR[3:0];
+	reg [3:0] ALUfunc;
 	wire [6:0] immediate;
 	SXT #(.IBITS(7),.OBITS(16)) Off(IR[6:0],immediate);
 	assign thebus=DrOff?immediate:16'hzzzz;
+	
+	assign LEDR[9:7] = opcode1;
+	assign LEDR[6] = 1'b1;
+	assign LEDR[5:2] = opcode2;
 	
 	reg LdA, LdB, DrALU, DrReg, WrReg, LdIR, DrOff, ShOff;
 	reg [2:0] regno;
@@ -105,13 +113,43 @@
   
   reg [ (DBITS-1):0] registers[8];
   
+  wire [ (DBITS-1):0] register;
+  assign register =	(regno==3'b000) ? registers[0]	// 0
+							: (regno==3'b001) ? registers[1]	// 1
+							: (regno==3'b010) ? registers[2] // 2
+							: (regno==3'b011) ? registers[3]	// 3
+							: (regno==3'b100) ? registers[4]	// 4
+							: (regno==3'b101) ? registers[5]	// 5
+							: (regno==3'b110) ? registers[6]	// 6
+							: (regno==3'b111) ? registers[7]
+							: 16'hbeef;	// impossible, or should be
+  
+  always @(posedge clk) begin
+	if(WrReg==1'b1) begin
+		case(regno)
+			3'b000:	registers[0]<=thebus;
+			3'b001:	registers[1]<=thebus;
+			3'b010:	registers[2]<=thebus;
+			3'b011:	registers[3]<=thebus;
+			3'b100:	registers[4]<=thebus;
+			3'b101:	registers[5]<=thebus;
+			3'b110:	registers[6]<=thebus;
+			3'b111:	registers[7]<=thebus;
+		endcase
+		end
+	end
+  
+  assign thebus=DrReg?register:16'hzzzz;
+  
   
   // TODO: Create ALU unit and connect to the bus (using A and B registers for ALU input)
   reg [ (DBITS-1):0] A, B;
 	wire[ (DBITS-1):0 ] ALUval;
-  always @(posedge LdA)
+  always @(posedge clk)
+	if(LdA==1'b1)
 		A <= thebus;
-  always @(posedge LdB)
+  always @(posedge clk)
+	if(LdB==1'b1)
 		B <= thebus;
 		
   assign thebus=DrALU?ALUval:16'hzzzz;
@@ -126,58 +164,209 @@
 	 .CMD_NAND(ALU_OP2_NAND),
 	 .CMD_NOR(ALU_OP2_NOR),
 	 .CMD_NXOR(ALU_OP2_NXOR)
-  ) thealu (A,B,opcode2,ALUval);
+  ) thealu (A,B,ALUfunc,ALUval);
 
 
   parameter S_BITS=5;
   parameter [(S_BITS-1):0]
-    S_ZERO  ={(S_BITS){1'b0}},
-    S_ONE   ={{(S_BITS-1){1'b0}},1'b1},
-    S_FETCH1=S_ZERO,				// 00000
-    S_FETCH2=S_FETCH1+S_ONE,  // 00001
-	 S_FETCH3=S_FETCH2+S_ONE,  // 00010
-	 S_ALU1	=S_FETCH3+S_ONE;	// 00011
+		S_ZERO  ={(S_BITS){1'b0}},
+		S_ONE   ={{(S_BITS-1){1'b0}},1'b1},
+		S_FETCH1=S_ZERO,				// 00000
+		S_FETCH2=S_FETCH1+S_ONE,  // 00001
+		S_FETCH3=S_FETCH2+S_ONE,  // 00010
+		S_ALU1	=S_FETCH3+S_ONE,	// 00011
+		S_ALU_ADD1 = S_ALU1+S_ONE,	// 00100
+		S_ALU_ADD2	= S_ALU_ADD1+S_ONE,	// 00101
+		S_ALU_SUB1	= S_ALU_ADD2+S_ONE,	// 00111
+		S_ALU_ADDI1	= S_ALU_SUB1+S_ONE, // 01000
+		S_BEQ1 = S_ALU_ADDI1+S_ONE,
+		S_BNE1 = S_BEQ1+S_ONE,
+		S_LW1 = S_BNE1+S_ONE,
+		S_LW2 = S_LW1+S_ONE,
+		S_LW3 = S_LW2+S_ONE,
+		S_LW4 = S_LW3+S_ONE,
+		S_SW1 = S_LW4+S_ONE,
+		S_SW2 = S_SW1+S_ONE,
+		S_SW3 = S_SW2+S_ONE,
+		S_SW4 = S_SW3+S_ONE,
+		S_JMP1 = S_SW1+S_ONE,
+		S_JMP2 = S_JMP1+S_ONE
+	;
     // TODO: Add all the states you need for your state machine
 
 	 reg ALUzero;
 	 initial ALUzero <=  0;
   reg [(S_BITS-1):0] state=S_FETCH1,next_state;
   always @(state or opcode1 or rsrc1 or rsrc2 or rdst or opcode2 or ALUzero) begin
-//    ALUfunc=CMD_ADD;
+    ALUfunc=ALU_OP2_ADD;
     {LdPC,DrPC,IncPC,LdMAR,WrMem,DrMem,LdIR,DrOff,ShOff, LdA, LdB,DrALU,regno,DrReg,WrReg,next_state}=
     {1'b0,1'b0, 1'b0, 1'b0, 1'b0, 1'b0,1'b0, 1'b0, 1'b0,1'b0,1'b0, 1'b0, 3'b0, 1'b0, 1'b0,state+S_ONE};
     case(state)
     S_FETCH1: {DrPC,LdMAR}={1'b1,1'b1};
     S_FETCH2: {DrMem,LdIR,IncPC}={1'b1,1'b1,1'b1};
     S_FETCH3: begin
-	             case(opcode1)
-					 OP1_ALU:  begin
-					             next_state=S_ALU1;
-								  end
+	            case(opcode1)
+						OP1_ALU: next_state=S_ALU1;
+						OP1_ADDI: next_state=S_ALU_ADDI1;
+						OP1_BEQ : next_state=S_BEQ1;
+						OP1_BNE : next_state=S_BNE1;
+						OP1_LW  : next_state=S_LW1;
+						OP1_SW  : next_state=S_SW1;
+						OP1_JMP : next_state=S_JMP1;
 					endcase
 					end
-    S_ALU1: begin
+	S_BEQ1:	begin
+					regno=rsrc1;
+					DrReg=1'b1;
+					LdA=1'b1;
+					next_state=S_BEQ2;
+				end
+	S_BEQ2:	begin
+					regno=rsrc2;
+					DrReg=1'b1;
+					LdB=1'b1;
+					next_state=S_BEQ3;
+				end
+	S_BEQ3:	begin
+					ALUfunc=ALU_OP2_LT;
+					DrALU=1'b1;
+					next_state=S_BEQ4;
+					if(thebus==16'h0001)
+						next_state=S_FETCH1;
+				end
+	S_BNE1: next_state=S_FETCH1;
+	S_LW1:	begin
+					regno=rsrc1;
+					DrReg=1'b1;
+					LdA=1'b1;
+					next_state=S_LW2;
+				end
+	S_LW2:	begin
+					DrOff=1'b1;
+					LdB=1'b1;
+					next_state=S_LW3;
+				end
+	S_LW3:	begin
+					LdMAR=1'b1;
+					DrALU=1'b1;
+					next_state=S_LW4;
+				end
+	S_LW4:	begin
+					regno=rdst;
+					WrReg=1'b1;
+					DrMem=1'b1;
+					next_state=S_FETCH1;
+				end
+	S_SW1: begin
+					regno=rsrc1;
+					DrReg=1'b1;
+					LdA=1'b1;
+					next_state=S_SW2;
+				end
+	S_SW2: begin
+					DrOff=1'b1;
+					LdB=1'b1;
+					next_state=S_SW3;
+				end
+	S_SW3: begin
+					DrALU=1'b1;
+					LdMAR=1'b1;
+					next_state=S_SW4;
+				end
+	S_SW4: begin
+					WrMem=1'b1;
+					regno=rsrc2;
+					DrReg=1'b1;
+					next_state=S_FETCH1;
+				end
+	S_JMP1: begin
+					regno=rdst;
+					WrReg=1'b1;
+					next_state=S_JMP2;
+				end
+	S_JMP2: begin
+					LdPC=1'b1;
+					DrReg=1'b1;
+					regno=rsrc1;
+					next_state=S_FETCH1;
+				end
+   S_ALU1: begin
+					regno=rsrc1;
+					DrReg=1'b1;
+					LdA=1'b1;
 					case(opcode2)
-					ALU_OP2_ADD: next_state=S_ALU_ADD;
-					ALU_OP2_SUB: next_state=S_ALU_ADD;
-					ALU_OP2_LT: next_state=S_ALU_ADD;
-					ALU_OP2_LE: next_state=S_ALU_ADD;
-					ALU_OP2_AND: next_state=S_ALU_ADD;
-					ALU_OP2_OR: next_state=S_ALU_ADD;
-					ALU_OP2_XOR: next_state=S_ALU_ADD;
-					ALU_OP2_NAND: next_state=S_ALU_ADD;
-					ALU_OP2_NOR: next_state=S_ALU_ADD;
-					ALU_OP2_NXOR: next_state=S_ALU_ADD;
+						ALU_OP2_ADD: next_state=S_ALU_ADD1;
+						ALU_OP2_SUB: begin
+							next_state=S_ALU_SUB1;
+							ALUfunc=ALU_OP2_SUB;
+							end
+						ALU_OP2_LT:  begin
+							next_state=S_ALU_ADD1;
+							ALUfunc=ALU_OP2_LT;
+							end
+						ALU_OP2_LE:  begin
+							next_state=S_ALU_ADD1;
+							ALUfunc=ALU_OP2_LE;
+							end
+						ALU_OP2_AND:  begin
+							next_state=S_ALU_ADD1;
+							ALUfunc=ALU_OP2_AND;
+							end
+						ALU_OP2_OR:  begin
+							next_state=S_ALU_ADD1;
+							ALUfunc=ALU_OP2_OR;
+							end
+						ALU_OP2_XOR:  begin
+							next_state=S_ALU_ADD1;
+							ALUfunc=ALU_OP2_XOR;
+							end
+						ALU_OP2_NAND:  begin
+							next_state=S_ALU_ADD1;
+							ALUfunc=ALU_OP2_NAND;
+							end
+						ALU_OP2_NOR:  begin
+							next_state=S_ALU_ADD1;
+							ALUfunc=ALU_OP2_NOR;
+							end
+						ALU_OP2_NXOR:  begin
+							next_state=S_ALU_ADD1;
+							ALUfunc=ALU_OP2_NXOR;
+							end
 					endcase
 				end
-	S_ALU_ADD:	begin
-						
+	S_ALU_SUB1: begin
+						regno=rsrc2;
+						DrReg=1'b1;
+						LdB=1'b1;
+						next_state=S_ALU_ADD2;
+					end
+	S_ALU_ADDI1: begin
+						DrOff=1'b1;
+						LdB=1'b1;
+						next_state=S_ALU_ADD2;
+					end
+	S_ALU_ADD1:	begin
+						regno=rsrc2;
+						DrReg=1'b1;
+						LdB=1'b1;
+						next_state=S_ALU_ADD2;
+					end
+	S_ALU_ADD2:	begin
+						regno=rdst;
+						WrReg=1'b1;
+						DrALU=1'b1;
+						next_state=S_FETCH1;
 					end
 	 endcase
   end
   always @(posedge clk)
 	if(lock)
 		state<=next_state;
+		
+	SevenSeg h0(HEX0,thebus[3:0]);
+	SevenSeg h1(HEX1,thebus[7:4]);
+	SevenSeg h2(HEX2,thebus[11:8]);
+	SevenSeg h3(HEX3,thebus[15:12]);
 endmodule
 
 module MEM(ADDR,DIN,DOUT,WE,CLK);
