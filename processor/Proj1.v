@@ -180,7 +180,9 @@ assign clk = CLOCK_50;
 		S_ALU_SUB1	= S_ALU_ADD2+S_ONE,	// 00111
 		S_ALU_ADDI1	= S_ALU_SUB1+S_ONE, // 01000
 		S_BEQ1 = S_ALU_ADDI1+S_ONE,
-		S_BNE1 = S_BEQ1+S_ONE,
+		S_BEQ2 = S_BEQ1+S_ONE,
+		S_BEQ3 = S_BEQ2+S_ONE,
+		S_BNE1 = S_BEQ3+S_ONE,
 		S_LW1 = S_BNE1+S_ONE,
 		S_LW2 = S_LW1+S_ONE,
 		S_LW3 = S_LW2+S_ONE,
@@ -230,7 +232,7 @@ assign clk = CLOCK_50;
 	S_BEQ3:	begin
 					ALUfunc=ALU_OP2_LT;
 					DrALU=1'b1;
-					next_state=S_BEQ4;
+					next_state=S_BEQ3;
 					if(thebus==16'h0001)
 						next_state=S_FETCH1;
 				end
