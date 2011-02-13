@@ -6,14 +6,14 @@
   output [7:0] LEDG;
   output [6:0] HEX0,HEX1,HEX2,HEX3;
 
-  wire clk,lock;
+  //wire clk,lock;
   // TODO: Create a PLL using the MegaWizard in order for this to work
-  Pll pll(.inclk0(CLOCK_50),.c0 (clk),.locked(lock));
+  //Pll pll(.inclk0(CLOCK_50),.c0 (clk),.locked(lock));
   // Use this instead to step the processor using KEY[3]
-/*
+
   wire clk=KEY[3];
   wire lock=1'b1;
-*/
+
   // Create the processor's bus
   parameter DBITS=16;
   tri [(DBITS-1):0] thebus;
@@ -30,6 +30,34 @@
   end
   assign thebus=DrPC?PC:BUSZ;
 
+  
+  // Provide nice names for opcode1 values
+  parameter
+    OP1_ALU =3'b000,
+    OP1_ADDI=3'b001,
+	 OP1_BEQ =3'b010,
+	 OP1_BNE =3'b011,
+	 OP1_LW  =3'b100,
+	 OP1_SW  =3'b101,
+	 OP1_JMP =3'b110;
+ 
+  // Provide nice names for opcode2 values when opcode1==OP1_ALU
+  parameter
+    ALU_OP2_ADD = 4'b0000,
+	 ALU_OP2_SUB = 4'b0001,
+    ALU_OP2_LT  = 4'b0100,
+	 ALU_OP2_LE  = 4'b0101,
+	 ALU_OP2_AND = 4'b1000,
+	 ALU_OP2_OR  = 4'b1001,
+	 ALU_OP2_XOR = 4'b1010,
+	 ALU_OP2_NAND= 4'b1100,
+	 ALU_OP2_NOR = 4'b1101,
+	 ALU_OP2_NXOR= 4'b1110;
+ 
+  // Provide nice names for opcode2 values when opcode1==OP1_JMP
+  parameter
+    JMP_OP2_JRL = 4'b0000;
+  
   // Create the memory unit and connect to the bus
   reg [(DBITS-1):0] MAR;  // MAR register
   reg LdMAR,WrMem,DrMem; // Control signals
@@ -57,42 +85,49 @@
   
   // TODO: Create the IR (instruction register) and connect it to the bus
   reg [(DBITS-1):0] IR;
+  always @(posedge LdIR)
+		IR<=thebus;
   // TODO: Also create opcode1, rsrc1, rsrc2, etc. signals from the IR (needed by control unit)
-  wire opcode1 = IR[15:13],
-		opcode2 = IR[3:0],
+  wire [2:0] opcode1 = IR[15:13],
 		rsrc1 = IR[12:10],
 		rsrc2 = IR[9:7],
 		rdst = IR[6:4];
+	wire [3:0] opcode2 = IR[3:0],
+		ALUfunc=opcode2;
+	wire [6:0] immediate;
+	SXT #(.IBITS(7),.OBITS(16)) Off(IR[6:0],immediate);
+	assign thebus=DrOff?immediate:16'hzzzz;
+	
+	reg LdA, LdB, DrALU, DrReg, WrReg, LdIR, DrOff, ShOff;
+	reg [2:0] regno;
+	//wire [7] imm = IR[6:0] // immediate?
   // TODO: Create the registers unit and connect it to the bus
   
+  reg [ (DBITS-1):0] registers[8];
+  
+  
   // TODO: Create ALU unit and connect to the bus (using A and B registers for ALU input)
+  reg [ (DBITS-1):0] A, B;
+	wire[ (DBITS-1):0 ] ALUval;
+  always @(posedge LdA)
+		A <= thebus;
+  always @(posedge LdB)
+		B <= thebus;
+		
+  assign thebus=DrALU?ALUval:16'hzzzz;
+  ALU #(.BITS(16),.CBITS(4),
+    .CMD_ADD(ALU_OP2_ADD),
+	 .CMD_SUB(ALU_OP2_SUB),
+	 .CMD_LT(ALU_OP2_LT),
+	 .CMD_LE(ALU_OP2_LE),
+	 .CMD_AND(ALU_OP2_AND),
+	 .CMD_OR(ALU_OP2_OR),
+	 .CMD_XOR(ALU_OP2_XOR),
+	 .CMD_NAND(ALU_OP2_NAND),
+	 .CMD_NOR(ALU_OP2_NOR),
+	 .CMD_NXOR(ALU_OP2_NXOR)
+  ) thealu (A,B,opcode2,ALUval);
 
-  // Provide nice names for opcode1 values
-  parameter
-    OP1_ALU =3'b000,
-    OP1_ADDI=3'b001,
-	 OP1_BEQ =3'b010,
-	 OP1_BNE =3'b011,
-	 OP1_LW  =3'b100,
-	 OP1_SW  =3'b101,
-	 OP1_JMP =3'b110;
- 
-  // Provide nice names for opcode2 values when opcode1==OP1_ALU
-  parameter
-    ALU_OP2_ADD = 4'b0000,
-	 ALU_OP2_SUB = 4'b0001,
-    ALU_OP2_LT  = 4'b0100,
-	 ALU_OP2_LE  = 4'b0101,
-	 ALU_OP2_AND = 4'b1000,
-	 ALU_OP2_OR  = 4'b1001,
-	 ALU_OP2_XOR = 4'b1010,
-	 ALU_OP2_NAND= 4'b1100,
-	 ALU_OP2_NOR = 4'b1101,
-	 ALU_OP2_NXOR= 4'b1110;
- 
-  // Provide nice names for opcode2 values when opcode1==OP1_JMP
-  parameter
-    JMP_OP2_JRL = 4'b0000;
 
   parameter S_BITS=5;
   parameter [(S_BITS-1):0]
@@ -104,9 +139,11 @@
 	 S_ALU1	=S_FETCH3+S_ONE;	// 00011
     // TODO: Add all the states you need for your state machine
 
+	 reg ALUzero;
+	 initial ALUzero <=  0;
   reg [(S_BITS-1):0] state=S_FETCH1,next_state;
   always @(state or opcode1 or rsrc1 or rsrc2 or rdst or opcode2 or ALUzero) begin
-    ALUfunc=CMD_ADD;
+//    ALUfunc=CMD_ADD;
     {LdPC,DrPC,IncPC,LdMAR,WrMem,DrMem,LdIR,DrOff,ShOff, LdA, LdB,DrALU,regno,DrReg,WrReg,next_state}=
     {1'b0,1'b0, 1'b0, 1'b0, 1'b0, 1'b0,1'b0, 1'b0, 1'b0,1'b0,1'b0, 1'b0, 3'b0, 1'b0, 1'b0,state+S_ONE};
     case(state)
@@ -119,7 +156,23 @@
 								  end
 					endcase
 					end
-    // TODO: Write the rest of the state machine
+    S_ALU1: begin
+					case(opcode2)
+					ALU_OP2_ADD: next_state=S_ALU_ADD;
+					ALU_OP2_SUB: next_state=S_ALU_ADD;
+					ALU_OP2_LT: next_state=S_ALU_ADD;
+					ALU_OP2_LE: next_state=S_ALU_ADD;
+					ALU_OP2_AND: next_state=S_ALU_ADD;
+					ALU_OP2_OR: next_state=S_ALU_ADD;
+					ALU_OP2_XOR: next_state=S_ALU_ADD;
+					ALU_OP2_NAND: next_state=S_ALU_ADD;
+					ALU_OP2_NOR: next_state=S_ALU_ADD;
+					ALU_OP2_NXOR: next_state=S_ALU_ADD;
+					endcase
+				end
+	S_ALU_ADD:	begin
+						
+					end
 	 endcase
   end
   always @(posedge clk)
