@@ -31,10 +31,10 @@ void writefile(const std::string& outfile);
 // Creates all the labels
 // Returns a string which replaces ',' with ' ', and removes all comments
 // What else??
-std::string firstpass(const std::string& assembly);
+void firstpass(const std::string& assembly, std::stringstream& is);
 
 // Translates into machine code
-void secondpass(const std::string& assembly);
+void secondpass(std::stringstream& is);
 
 void createreservedwords();
 
@@ -84,7 +84,9 @@ int main(int argc, char* argv[]) {
 	std::string assembly;
 	readfile(file,assembly);
 
-	secondpass(firstpass(assembly));
+	std::stringstream parsed(std::stringstream::in | std::stringstream::out);
+	firstpass(assembly,parsed);
+	secondpass(parsed);
 
 	writefile(out);
 }
@@ -129,10 +131,10 @@ void writefile(const std::string &writefile) {
 	of.close();
 }
 
-std::string firstpass(const std::string& assembly) {
+void firstpass(const std::string& assembly, std::stringstream& out) {
 	using namespace std;
 	stringstream is(assembly, stringstream::in | stringstream::out);
-	string token, pass1;
+	string token;
 	unsigned long int index;
 	unsigned int i;
 	unsigned long int address = 0;
@@ -144,37 +146,76 @@ std::string firstpass(const std::string& assembly) {
 		if(!token.rfind(';', 0)) {	// If token starts with a comment, move to next line
 			getline(is, token);
 		}
-		else if((index = token.find(':', 0)) != -1) {	// If token is a label, parse.
-			pass1 += ' ' + token + ' ';
-			string label = token.substr(0,index);
+		else if(token.at(0) == '.') {
+			// .ORIG || .DATA
+			if(!token.compare(".ORIG")) {
+				// Put .ORIG back into parsed data
+				out << ' ' <<  token << ' ';
 
-			if(!label.compare(".ORG")) {
-				is >> address;	// Grab address from next token
-			}
-			else if(!label.compare(".DATA")) {
+				// Get the address
 				is >> token;
+				// Hex?
+				if(!token.substr(0,2).compare("0x")) {
+					token = token.substr(2,token.size()-2);
+					istringstream conv(token);
+					conv >> hex >> address;	
+				}
+				// Decimal
+				else {
+					istringstream conv(token);
+					conv >> address;
+				}
+				// Put decimal address into parsed data
+				out << ' ' << address << ' ';
+			}
+			else if(!token.compare(".DATA")) { // Unfinished, needs to support labels :X
+				// Get the address
+				is >> token;
+				// Label?
+				if(isalpha(token.at(0))) {
+					// scan for existing labels
+					// if it doesn't exist yet? :X
+				}
+				// Hex?
+				else if(!token.substr(0,2).compare("0x")) {
+					token = token.substr(2,token.size()-2);
+					istringstream conv(token);
+					conv >> hex >> address;	
+				}
+				// Decimal
+				else {
+					istringstream conv(token);
+					conv >> address;
+				}
+				// Put decimal address into parsed data
+				out << ' ' << address << ' ';
 				++address;	// Leave a space for the data
 			}
-			else {			// Search for the label in labels
-				unsigned int size = labels.size();
-				for(i = 0; i < size; ++i) {
-					if(!label.compare(labels[i].first))
-						break;
-				}
-
-				if(i == size)	// If label has not been initialized before, add it to labels
-					labels.push_back(pair<string,INSTRSIZE>(label,address));
-				else
-					cout << "Warning: label " << label <<
-						" has been declared more than once. The first instance will be used.\n";
+			else {
+				cout << "Invalid token: " << token << endl;
+				exit(1);
 			}
+		}
+		else if((index = token.find(':', 0)) != -1) {	// If token is a label, parse.
+			string label = token.substr(0,index);
+
+			unsigned int size = labels.size();
+			for(i = 0; i < size; ++i) 
+				if(!label.compare(labels[i].first))
+					break;
+
+			if(i == size)	// If label has not been initialized before, add it to labels
+				labels.push_back(pair<string,INSTRSIZE>(label,address));
+			else
+				cout << "Warning: label " << label <<
+					" has been declared more than once. The first instance will be used.\n";
 		}
 		else {	// Token is neither label nor comment. If it's an instruction, increase the address and continue.
 			// Switch ',' with ' '
 			unsigned int loc = 0;
 			while( (loc=token.find(',',loc)) != -1)
 				token.at(loc)=' ';
-			pass1 += ' ' + token + ' ';
+			out << ' ' <<  token << ' ';
 
 			for(i = 0; i < totalinstrs; ++i) {
 				if(token.compare(reservedwords[i].first) == 0) { // matching instruction?
@@ -188,17 +229,16 @@ std::string firstpass(const std::string& assembly) {
 	// Test label table (Can remove when done)
 	//for(unsigned int i = 0; i < labels.size(); i++)
 		//cout << labels[i].first << " " << labels[i].second << "\n";
-	return pass1;
 }
 
 // This could probably divided up into multiple functions, but I'm lazy right now
 // I'll do it later if things become much more complicated
-void secondpass(const std::string& assembly) {
+void secondpass(std::stringstream& is) {
 	using namespace std;
-	istringstream is(assembly, stringstream::in | stringstream::out);
 
 	string token;
 	unsigned long int instrcnt = 0;
+	INSTRSIZE address = 0;
 
 	// Read each token
 	while(is.good()) {
@@ -207,7 +247,12 @@ void secondpass(const std::string& assembly) {
 		if(!is.good())
 			break;
 		
-		if(token.find(':',0) != -1); // TODO: adjust locations based on .ORIG
+		if (token.at(0) == '.') {
+			if(!token.compare(".ORIG")) {
+				is >> address;
+				cout << address << endl;
+			}
+		}
 		else {
 			// We use this to help detect invalid code
 			unsigned long int oldcount = instrcnt;
@@ -231,6 +276,7 @@ void secondpass(const std::string& assembly) {
 					else
 						cout << "Error: Incomplete file?" << endl;
 
+					//---- The first argument to an instruction is always a register
 					// All registers are strings of length 2
 					string reg = token.substr(0,2);
 
