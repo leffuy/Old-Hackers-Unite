@@ -98,15 +98,19 @@ assign clk = CLOCK_50;
 		rdst = IR[6:4];
 	wire [3:0] opcode2 = IR[3:0];
 	reg [3:0] ALUfunc;
-	wire [6:0] immediate;
+	wire [15:0] immediate;
 	SXT #(.IBITS(7),.OBITS(16)) Off(IR[6:0],immediate);
 	assign thebus=DrOff?immediate:16'hzzzz;
+	
+	wire [15:0]PCOff = (immediate*2'b10)+PC+3'b100;
+	
+	assign thebus=DrPCOff?PCOff:16'hzzzz;
 	
 	assign LEDR[9:7] = opcode1;
 	assign LEDR[6] = 1'b1;
 	assign LEDR[5:2] = opcode2;
 	
-	reg LdA, LdB, DrALU, DrReg, WrReg, LdIR, DrOff, ShOff;
+	reg LdA, LdB, DrALU, DrReg, WrReg, LdIR, DrOff, ShOff, DrPCOff, SwAB;
 	reg [2:0] regno;
 	//wire [7] imm = IR[6:0] // immediate?
   // TODO: Create the registers unit and connect it to the bus
@@ -145,14 +149,17 @@ assign clk = CLOCK_50;
   // TODO: Create ALU unit and connect to the bus (using A and B registers for ALU input)
   reg [ (DBITS-1):0] A, B;
 	wire[ (DBITS-1):0 ] ALUval;
-  always @(posedge clk)
+  always @(posedge clk) begin
 	if(LdA==1'b1)
 		A <= thebus;
-  always @(posedge clk)
 	if(LdB==1'b1)
 		B <= thebus;
+	if(SwAB==1'b1) begin
+							A<=B;
+							B<=A;
+						end
+	end
 		
-  assign thebus=DrALU?ALUval:16'hzzzz;
   ALU #(.BITS(16),.CBITS(4),
     .CMD_ADD(ALU_OP2_ADD),
 	 .CMD_SUB(ALU_OP2_SUB),
@@ -165,6 +172,7 @@ assign clk = CLOCK_50;
 	 .CMD_NOR(ALU_OP2_NOR),
 	 .CMD_NXOR(ALU_OP2_NXOR)
   ) thealu (A,B,ALUfunc,ALUval);
+  assign thebus=DrALU?ALUval:16'hzzzz;
 
 
   parameter S_BITS=5;
@@ -182,7 +190,9 @@ assign clk = CLOCK_50;
 		S_BEQ1 = S_ALU_ADDI1+S_ONE,
 		S_BEQ2 = S_BEQ1+S_ONE,
 		S_BEQ3 = S_BEQ2+S_ONE,
-		S_BNE1 = S_BEQ3+S_ONE,
+		S_BEQ4 = S_BEQ3+S_ONE,
+		S_BEQ5 = S_BEQ4+S_ONE,
+		S_BNE1 = S_BEQ5+S_ONE,
 		S_LW1 = S_BNE1+S_ONE,
 		S_LW2 = S_LW1+S_ONE,
 		S_LW3 = S_LW2+S_ONE,
@@ -191,7 +201,7 @@ assign clk = CLOCK_50;
 		S_SW2 = S_SW1+S_ONE,
 		S_SW3 = S_SW2+S_ONE,
 		S_SW4 = S_SW3+S_ONE,
-		S_JMP1 = S_SW1+S_ONE,
+		S_JMP1 = S_SW4+S_ONE,
 		S_JMP2 = S_JMP1+S_ONE
 	;
     // TODO: Add all the states you need for your state machine
@@ -199,7 +209,7 @@ assign clk = CLOCK_50;
 	 reg ALUzero;
 	 initial ALUzero <=  0;
   reg [(S_BITS-1):0] state=S_FETCH1,next_state;
-  always @(state or opcode1 or rsrc1 or rsrc2 or rdst or opcode2 or ALUzero) begin
+  always @(state or opcode1 or rsrc1 or rsrc2 or rdst or opcode2 or ALUzero or thebus) begin
     ALUfunc=ALU_OP2_ADD;
     {LdPC,DrPC,IncPC,LdMAR,WrMem,DrMem,LdIR,DrOff,ShOff, LdA, LdB,DrALU,regno,DrReg,WrReg,next_state}=
     {1'b0,1'b0, 1'b0, 1'b0, 1'b0, 1'b0,1'b0, 1'b0, 1'b0,1'b0,1'b0, 1'b0, 3'b0, 1'b0, 1'b0,state+S_ONE};
@@ -232,9 +242,24 @@ assign clk = CLOCK_50;
 	S_BEQ3:	begin
 					ALUfunc=ALU_OP2_LT;
 					DrALU=1'b1;
-					next_state=S_BEQ3;
+					next_state=S_BEQ4;
 					if(thebus==16'h0001)
 						next_state=S_FETCH1;
+				end
+	S_BEQ4:	begin
+					SwAB=1'b1;
+					next_state=S_BEQ5;
+				end
+	S_BEQ5:	begin
+					ALUfunc=ALU_OP2_LT;
+					DrALU=1'b1;
+					next_state=S_BEQ6;
+					if(thebus==16'h0001)
+						next_state=S_FETCH1;
+				end
+	S_BEQ6:	begin
+					DrPCOff=1'b1;
+					next_state=S_FETCH1;
 				end
 	S_BNE1: next_state=S_FETCH1;
 	S_LW1:	begin
@@ -365,10 +390,10 @@ assign clk = CLOCK_50;
 	if(lock)
 		state<=next_state;
 		
-	SevenSeg h0(HEX0,thebus[3:0]);
-	SevenSeg h1(HEX1,thebus[7:4]);
-	SevenSeg h2(HEX2,thebus[11:8]);
-	SevenSeg h3(HEX3,thebus[15:12]);
+//	SevenSeg h0(HEX0,thebus[3:0]);
+//	SevenSeg h1(HEX1,thebus[7:4]);
+//	SevenSeg h2(HEX2,thebus[11:8]);
+//	SevenSeg h3(HEX3,thebus[15:12]);
 endmodule
 
 module MEM(ADDR,DIN,DOUT,WE,CLK);

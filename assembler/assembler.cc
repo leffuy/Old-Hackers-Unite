@@ -29,8 +29,9 @@ void readfile(const std::string& file, std::string& data);
 void writefile(const std::string& outfile);
 
 // Creates all the labels
+// Returns a string which replaces ',' with ' ', and removes all comments
 // What else??
-void firstpass(const std::string& assembly);
+std::string firstpass(const std::string& assembly);
 
 // Translates into machine code
 void secondpass(const std::string& assembly);
@@ -83,8 +84,7 @@ int main(int argc, char* argv[]) {
 	std::string assembly;
 	readfile(file,assembly);
 
-	firstpass(assembly);
-	secondpass(assembly);
+	secondpass(firstpass(assembly));
 
 	writefile(out);
 }
@@ -129,10 +129,10 @@ void writefile(const std::string &writefile) {
 	of.close();
 }
 
-void firstpass(const std::string& assembly) {
+std::string firstpass(const std::string& assembly) {
 	using namespace std;
 	stringstream is(assembly, stringstream::in | stringstream::out);
-	string token;
+	string token, pass1;
 	unsigned long int index;
 	unsigned int i;
 	unsigned long int address = 0;
@@ -145,6 +145,7 @@ void firstpass(const std::string& assembly) {
 			getline(is, token);
 		}
 		else if((index = token.find(':', 0)) != -1) {	// If token is a label, parse.
+			pass1 += ' ' + token + ' ';
 			string label = token.substr(0,index);
 
 			if(!label.compare(".ORG")) {
@@ -169,6 +170,12 @@ void firstpass(const std::string& assembly) {
 			}
 		}
 		else {	// Token is neither label nor comment. If it's an instruction, increase the address and continue.
+			// Switch ',' with ' '
+			unsigned int loc = 0;
+			while( (loc=token.find(',',loc)) != -1)
+				token.at(loc)=' ';
+			pass1 += ' ' + token + ' ';
+
 			for(i = 0; i < totalinstrs; ++i) {
 				if(token.compare(reservedwords[i].first) == 0) { // matching instruction?
 					++address;
@@ -181,6 +188,7 @@ void firstpass(const std::string& assembly) {
 	// Test label table (Can remove when done)
 	//for(unsigned int i = 0; i < labels.size(); i++)
 		//cout << labels[i].first << " " << labels[i].second << "\n";
+	return pass1;
 }
 
 // This could probably divided up into multiple functions, but I'm lazy right now
@@ -195,14 +203,11 @@ void secondpass(const std::string& assembly) {
 	// Read each token
 	while(is.good()) {
 		is >> token;
+		cout << token << endl;
 		if(!is.good())
 			break;
 		
-		if(token.find(';',0) == 0) { // Found a comment
-			if(is.good())
-				getline(is,token);
-		}
-		else if(token.find(':',0) != -1); // In the second pass we just want to ignore labels
+		if(token.find(':',0) != -1); // TODO: adjust locations based on .ORIG
 		else {
 			// We use this to help detect invalid code
 			unsigned long int oldcount = instrcnt;
