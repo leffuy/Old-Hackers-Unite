@@ -21,6 +21,8 @@ unsigned int totalinstrs;
 
 // list of labels and calculated location
 std::vector<std::pair<std::string,INSTRSIZE> > labels;
+// The instructions to put into memory
+std::vector<INSTRSIZE> instructions;
 
 // Reads the file into data
 void readfile(const std::string& file, std::string& data);
@@ -37,6 +39,9 @@ void firstpass(const std::string& assembly, std::stringstream& is);
 void secondpass(std::stringstream& is);
 
 void createreservedwords();
+INSTRSIZE getValue(const std::string& name);
+void store(INSTRSIZE start);
+void store(INSTRSIZE start, INSTRSIZE value);
 
 int main(int argc, char* argv[]) {
 
@@ -89,12 +94,17 @@ int main(int argc, char* argv[]) {
 	secondpass(parsed);
 
 	writefile(out);
+	return 0;
 }
 
 void readfile(const std::string& file, std::string& data) {
 	using namespace std;
 	ifstream ifs;
 	ifs.open(file.c_str(),ios::binary);
+	if(!ifs.is_open()) {
+		cout << "Error: Could not open " << file << endl;
+		exit(1);
+	}
 
 	// get the size of the file
 	ifs.seekg(0,ios::end);
@@ -169,26 +179,33 @@ void firstpass(const std::string& assembly, std::stringstream& out) {
 				out << ' ' << address << ' ';
 			}
 			else if(!token.compare(".DATA")) { // Unfinished, needs to support labels :X
+				INSTRSIZE value = 0;
 				// Get the address
 				is >> token;
 				// Label?
 				if(isalpha(token.at(0))) {
 					// scan for existing labels
+					for(int j = 0; j < labels.size(); ++j) {
+						if(!labels[j].first.compare(token)) {
+							value = labels[j].second;
+							break;
+						}
+					}
 					// if it doesn't exist yet? :X
 				}
 				// Hex?
 				else if(!token.substr(0,2).compare("0x")) {
 					token = token.substr(2,token.size()-2);
 					istringstream conv(token);
-					conv >> hex >> address;	
+					conv >> hex >> value;	
 				}
 				// Decimal
 				else {
 					istringstream conv(token);
-					conv >> address;
+					conv >> value;
 				}
 				// Put decimal address into parsed data
-				out << ' ' << address << ' ';
+				store(address,value);
 				++address;	// Leave a space for the data
 			}
 			else {
@@ -215,6 +232,14 @@ void firstpass(const std::string& assembly, std::stringstream& out) {
 			unsigned int loc = 0;
 			while( (loc=token.find(',',loc)) != -1)
 				token.at(loc)=' ';
+			loc=0;
+			if( (loc=token.find('(',loc)) != -1)
+				token.at(loc)=' ';
+			loc=0;
+			if( (loc=token.find(')',loc)) != -1)
+				token.at(loc)=' ';
+
+			cout << token << endl;
 			out << ' ' <<  token << ' ';
 
 			for(i = 0; i < totalinstrs; ++i) {
@@ -239,9 +264,11 @@ void secondpass(std::stringstream& is) {
 	string token;
 	unsigned long int instrcnt = 0;
 	INSTRSIZE address = 0;
+	bool reverse12, offset;
 
 	// Read each token
 	while(is.good()) {
+		offset = reverse12 = false;
 		is >> token;
 		cout << token << endl;
 		if(!is.good())
@@ -249,6 +276,8 @@ void secondpass(std::stringstream& is) {
 		
 		if (token.at(0) == '.') {
 			if(!token.compare(".ORIG")) {
+				if(instructions.size()>0)
+					store(address);
 				is >> address;
 				cout << address << endl;
 			}
@@ -264,10 +293,15 @@ void secondpass(std::stringstream& is) {
 
 					string instruction = reservedwords[i].first;
 					INSTRSIZE instr = reservedwords[i].second;
-					if(instr == -1) { // We found a psuedo-instruction or something else
-						// For the time being, just ignore the line
-						if(is.good())
-							getline(is,token);
+					if(instr == 0xffff) { // We found a psuedo-instruction or something else
+						if(!token.compare("GT")) {
+							reverse12 = true;
+							instr = getValue("LT");
+						}
+						else if(!token.compare("GE")) {
+							reverse12 = true;
+							instr = getValue("LE");
+						}
 					}
 
 					// Next comes a register
@@ -282,7 +316,10 @@ void secondpass(std::stringstream& is) {
 
 					for(unsigned int j = 0; j < reservedwords.size(); ++j) {
 						if(reg.compare(reservedwords[j].first) == 0) {
-							instr = instr | (reservedwords[j].second << 10);
+							if(reverse12)
+								instr = instr | (reservedwords[j].second << 7);
+							else
+								instr = instr | (reservedwords[j].second << 10);
 							break;
 						}
 					}
@@ -293,34 +330,54 @@ void secondpass(std::stringstream& is) {
 					else
 						cout << "Error: Incomplete file?" << endl;
 
-					// All registers are strings of length 2
-					reg = token.substr(0,2);
+					// Is it an offset?
+					if(isdigit(token.at(0)) || token.at(0)=='-') {
+						offset = true;
+						istringstream conv(token);
+						INSTRSIZE imm;
+						conv >> imm;
+						cout << imm << endl;
+						if(imm > 0xffff || imm < 0x0000) {
+							cout << "Offset too large: " << imm << endl;
+							exit(1);
+						}
+						instr |= imm;
+					}
+					else {
 
-					for(unsigned int j = 0; j < reservedwords.size(); ++j) {
-						if(reg.compare(reservedwords[j].first) == 0) {
-							instr = instr | (reservedwords[j].second << 7);
-							break;
+						// All registers are strings of length 2
+						reg = token.substr(0,2);
+
+						for(unsigned int j = 0; j < reservedwords.size(); ++j) {
+							if(reg.compare(reservedwords[j].first) == 0) {
+								if(reverse12)
+									instr = instr | (reservedwords[j].second << 10);
+								else
+									instr = instr | (reservedwords[j].second << 7);
+								break;
+							}
 						}
 					}
 					
-					// Next comes a register
-					if(is.good())
+					// Next comes a register?
+					if( is.good())
 						is >> token;
-					else
+					else 
 						cout << "Error: Incomplete file?" << endl;
 
-					// All registers are strings of length 2
-					reg = token.substr(0,2);
+						// All registers are strings of length 2
+						reg = token.substr(0,2);
 
-					for(unsigned int j = 0; j < reservedwords.size(); ++j) {
-						if(reg.compare(reservedwords[j].first) == 0) {
-							instr = instr | (reservedwords[j].second << 4);
-							break;
+						for(unsigned int j = 0; j < reservedwords.size(); ++j) {
+							if(reg.compare(reservedwords[j].first) == 0) {
+								instr = instr | (reservedwords[j].second << 4);
+								break;
+							}
 						}
-					}
 
 
 					cout << hex << instr << endl;
+					instructions.push_back(instr);
 
 
 				}
@@ -332,6 +389,7 @@ void secondpass(std::stringstream& is) {
 			}
 		}
 	}
+	store(address);
 }
 
 void createreservedwords() {
@@ -409,3 +467,21 @@ void createreservedwords() {
 	rw.push_back(pair<string,INSTRSIZE>("SP",rw.back().second));
 
 }
+
+INSTRSIZE getValue(const std::string& name) {
+	for(unsigned int i = 0; i < reservedwords.size(); ++i)
+		if( reservedwords[i].first.compare(name) == 0)
+			return reservedwords[i].second;
+	return -1;
+}
+
+void store(INSTRSIZE start) {
+	for(unsigned int i = 0; i < instructions.size(); ++i, ++start) {
+		memory[start] = instructions[i];
+	}
+}
+
+void store(INSTRSIZE start, INSTRSIZE value) {
+	memory[start] = value;
+}
+
