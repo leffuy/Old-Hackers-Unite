@@ -86,6 +86,9 @@ int main(int argc, char* argv[]) {
 		}
 	}
 
+	for(int i = 0; i < IMGSIZE; ++i)
+		memory[i] = 0xdead;
+
 	createreservedwords();
 
 	// the string to store the unparsed file into
@@ -232,8 +235,8 @@ void firstpass(const std::string& assembly, std::stringstream& out) {
 					conv >> value;
 				}
 				// Put decimal address into parsed data
-				store(address,value);
-				++address;	// Leave a space for the data
+				store(address/2,value);
+				address+=2;	// Leave a space for the data
 			}
 			else {
 				cout << "Invalid token: " << token << endl;
@@ -267,7 +270,6 @@ void firstpass(const std::string& assembly, std::stringstream& out) {
 				token.at(loc)=' ';
 
 
-			cout << token << endl;
 			out << ' ' <<  token << ' ';
 
 			for(i = 0; i < totalinstrs; ++i) {
@@ -306,13 +308,12 @@ void secondpass(std::stringstream& is) {
 	string token;
 	unsigned long int instrcnt = 0;
 	INSTRSIZE address = 0;
-	bool reverse12, offset;
+	bool reverse12, offset, ALU, B, ADDI;
 
 	// Read each token
 	while(is.good()) {
-		offset = reverse12 = false;
+		offset = reverse12 = ALU = ADDI = B = false;
 		is >> token;
-		cout << token << endl;
 		if(!is.good())
 			break;
 		
@@ -321,7 +322,7 @@ void secondpass(std::stringstream& is) {
 				if(instructions.size()>0)
 					store(address);
 				is >> address;
-				cout << address << endl;
+				instrcnt=0;
 			}
 		}
 		else {
@@ -345,6 +346,14 @@ void secondpass(std::stringstream& is) {
 							instr = getValue("LE");
 						}
 					}
+					else if ( (instr>>13) == 0 )
+						ALU = true;
+					else if ( (instr>>13) == 1 )
+						ADDI = true;
+					else if ( (instr>>13) == 5  || (instr>>13) == 4 )
+						reverse12 = true;
+					else if ( (instr>>14) == 1 || (instr>>13) == 3 )
+						B = true;
 
 					// Next comes a register
 					if(is.good())
@@ -356,7 +365,9 @@ void secondpass(std::stringstream& is) {
 
 					for(unsigned int j = 0; j < reservedwords.size(); ++j) {
 						if(token.compare(reservedwords[j].first) == 0) {
-							if(reverse12)
+							if(ALU)
+								instr = instr | (reservedwords[j].second << 4);
+							if(B)
 								instr = instr | (reservedwords[j].second << 10);
 							else
 								instr = instr | (reservedwords[j].second << 7);
@@ -397,7 +408,9 @@ void secondpass(std::stringstream& is) {
 
 						for(unsigned int j = 0; j < reservedwords.size(); ++j) {
 							if(token.compare(reservedwords[j].first) == 0) {
-								if(reverse12)
+								if(ALU)
+									instr = instr | (reservedwords[j].second << 10);
+								if(reverse12 || B)
 									instr = instr | (reservedwords[j].second << 7);
 								else
 									instr = instr | (reservedwords[j].second << 10);
@@ -426,25 +439,39 @@ void secondpass(std::stringstream& is) {
 							conv >> imm;
 
 						imm &= 0x7F;
-						cout << imm << endl;
 						if( !(imm >= 0x80 && imm <= 0xFF) && !(imm >= 0 && imm <= 0x7F) ) {
 							cout << "Immediate too large or small: " << imm << endl;
 							exit(1);
 						}
 						instr |= imm;
 					}
+					else if(B||ADDI) {
+						offset = true;
+						cout << hex;
+						for(int j=0; j < labels.size(); ++j) {
+							if(!labels[j].first.compare(token)) {
+								instr |= (labels[j].second-instrcnt) & 0x7F;
+								break;
+							}
+						}
+
+					}
 					else {
 
 						for(unsigned int j = 0; j < reservedwords.size(); ++j) {
 							if(token.compare(reservedwords[j].first) == 0) {
-								instr = instr | (reservedwords[j].second << 4);
+								if(ALU)
+									instr = instr | (reservedwords[j].second << 7);
+								if(reverse12)
+									instr = instr | (reservedwords[j].second << 10);
+								else
+									instr = instr | (reservedwords[j].second << 4);
 								break;
 							}
 						}
 					}
 
 
-					cout << hex << instr << endl;
 					instructions.push_back(instr);
 
 
