@@ -44,11 +44,11 @@ Instruction format (from MSB to LSB):
 					op2 = ADD, SUB, LT, LE, AND, OR, XOR, NAND, NOR, NXOR
 					ALL:		rdst = rsrc1 op2 rsrc2
 
-	{op1,rsrc,rdst,imm}		op1 = ADDI, LW
+	{op1,rsrc,rdst,imm}		op1 = ADDI, LW, SW
 					ADDI:		rdst = rsrc op sxt(imm)
 					LW:		rdst = mem[rsrc + sxt(imm)]
 
-	{op1,rsrc1,rsrc2,imm}		op1 = BEQ, BNE, SW
+	{op1,rsrc1,rsrc2,imm}		op1 = BEQ, BNE
 					BEQ, BNE:	if(rsrc1 cmp rsrc2) PC=PC+4+(sxt(imm)*2)
 
 	{op1,rsrc1,000,rdst,op2}	op1 = JMP
