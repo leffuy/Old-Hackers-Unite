@@ -1,3 +1,4 @@
+#include <iomanip>
 #include <iostream>
 #include <sstream>
 #include <fstream>
@@ -42,6 +43,8 @@ void createreservedwords();
 INSTRSIZE getValue(const std::string& name);
 void store(INSTRSIZE start);
 void store(INSTRSIZE start, INSTRSIZE value);
+void range(std::ostream& os, INSTRSIZE value, INSTRSIZE begin, INSTRSIZE end);
+void hprint(std::ostream& os, INSTRSIZE value);
 
 int main(int argc, char* argv[]) {
 
@@ -128,13 +131,30 @@ void writefile(const std::string &writefile) {
 	// Required mif headers. see http://www.altera.com/support/examples/verilog/ver_ram.html#mif
 	of << "WIDTH = " << IMGWIDTH << ";\n"; 
 	of << "DEPTH = " << IMGSIZE <<" ;\n";
-	of << "ADDRESS_RADIX = UNS;\n";		// unsigned decimal
-	of << "DATA_RADIX = UNS;\n";	// unsigned decimal with WIDTH bits
+	of << "ADDRESS_RADIX = HEX;\n";		// unsigned decimal
+	of << "DATA_RADIX = HEX;\n";	// unsigned decimal with WIDTH bits
 
 	of << "CONTENT BEGIN\n";
 
-	for(unsigned int i = 0; i < IMGSIZE; ++i)
-		of << '\t' << i << "\t:\t" << memory[i] << ";\n";
+	for(INSTRSIZE i=1, j=0; i <= IMGSIZE; ++i) {
+		if(memory[i]==memory[j]) {
+			if(i==IMGSIZE-1) {
+				range(of,memory[j],j,i);
+				break;
+			}
+		}
+		else if ( (i-j) > 1) {
+			range(of,memory[j],j,i-1);
+			j=i;
+		}
+		else {
+			hprint(of,j);
+			of << " : ";
+			hprint(of,memory[j]);
+			of << ";\n";
+			++j;
+		}
+	}
 
 	of << "END;\n";
 
@@ -148,6 +168,8 @@ void firstpass(const std::string& assembly, std::stringstream& out) {
 	unsigned long int index;
 	unsigned int i;
 	unsigned long int address = 0;
+
+	vector<pair<string,INSTRSIZE> > datalabel;
 
 	// Read each token
 	while(is.good()) {
@@ -175,6 +197,7 @@ void firstpass(const std::string& assembly, std::stringstream& out) {
 					istringstream conv(token);
 					conv >> address;
 				}
+				address/=2;
 				// Put decimal address into parsed data
 				out << ' ' << address << ' ';
 			}
@@ -185,13 +208,17 @@ void firstpass(const std::string& assembly, std::stringstream& out) {
 				// Label?
 				if(isalpha(token.at(0))) {
 					// scan for existing labels
+					bool found = false;
 					for(int j = 0; j < labels.size(); ++j) {
 						if(!labels[j].first.compare(token)) {
 							value = labels[j].second;
+							found = true;
 							break;
 						}
 					}
-					// if it doesn't exist yet? :X
+					if(!found)
+						datalabel.push_back(pair<string,INSTRSIZE>(token,address));
+
 				}
 				// Hex?
 				else if(!token.substr(0,2).compare("0x")) {
@@ -239,6 +266,7 @@ void firstpass(const std::string& assembly, std::stringstream& out) {
 			if( (loc=token.find(')',loc)) != -1)
 				token.at(loc)=' ';
 
+
 			cout << token << endl;
 			out << ' ' <<  token << ' ';
 
@@ -254,6 +282,20 @@ void firstpass(const std::string& assembly, std::stringstream& out) {
 	// Test label table (Can remove when done)
 	//for(unsigned int i = 0; i < labels.size(); i++)
 		//cout << labels[i].first << " " << labels[i].second << "\n";
+
+	// Now fill in the missing .DATA now that we should have found all the labels
+	unsigned int loc = 0;
+	for(unsigned int i = 0; i < datalabel.size(); ++i) {
+		for(unsigned int j = 0; j < labels.size(); ++j) {
+			if(!labels[j].first.compare(datalabel[i].first))
+				loc=j;
+				goto found;
+		}
+		cout << "Error: Missing label " << datalabel[i].first << endl;
+		exit(1);
+found:
+		store(datalabel[i].second,labels[loc].second);
+	}
 }
 
 // This could probably divided up into multiple functions, but I'm lazy right now
@@ -311,15 +353,13 @@ void secondpass(std::stringstream& is) {
 						cout << "Error: Incomplete file?" << endl;
 
 					//---- The first argument to an instruction is always a register
-					// All registers are strings of length 2
-					string reg = token.substr(0,2);
 
 					for(unsigned int j = 0; j < reservedwords.size(); ++j) {
-						if(reg.compare(reservedwords[j].first) == 0) {
+						if(token.compare(reservedwords[j].first) == 0) {
 							if(reverse12)
-								instr = instr | (reservedwords[j].second << 7);
-							else
 								instr = instr | (reservedwords[j].second << 10);
+							else
+								instr = instr | (reservedwords[j].second << 7);
 							break;
 						}
 					}
@@ -335,25 +375,32 @@ void secondpass(std::stringstream& is) {
 						offset = true;
 						istringstream conv(token);
 						INSTRSIZE imm;
-						conv >> imm;
-						cout << imm << endl;
-						if(imm > 0xffff || imm < 0x0000) {
-							cout << "Offset too large: " << imm << endl;
+
+						// Hex -> decimal for immediates
+						if(!token.substr(0,2).compare("0x")) {
+							token = token.substr(2,token.size()-2);
+							istringstream conv(token);
+							conv >> hex >> imm;	
+						}
+						else
+							conv >> imm;
+
+						imm &= 0x7F;
+						if( !(imm >= 0x80 && imm <= 0xFF) && !(imm >= 0 && imm <= 0x7F) ) {
+							cout << "Offset too large or small: " << imm << endl;
 							exit(1);
 						}
 						instr |= imm;
 					}
 					else {
 
-						// All registers are strings of length 2
-						reg = token.substr(0,2);
 
 						for(unsigned int j = 0; j < reservedwords.size(); ++j) {
-							if(reg.compare(reservedwords[j].first) == 0) {
+							if(token.compare(reservedwords[j].first) == 0) {
 								if(reverse12)
-									instr = instr | (reservedwords[j].second << 10);
-								else
 									instr = instr | (reservedwords[j].second << 7);
+								else
+									instr = instr | (reservedwords[j].second << 10);
 								break;
 							}
 						}
@@ -364,16 +411,37 @@ void secondpass(std::stringstream& is) {
 						is >> token;
 					else 
 						cout << "Error: Incomplete file?" << endl;
+					if(isdigit(token.at(0)) || token.at(0)=='-') {
+						offset = true;
+						istringstream conv(token);
+						INSTRSIZE imm;
 
-						// All registers are strings of length 2
-						reg = token.substr(0,2);
+						// Hex -> decimal for immediates
+						if(!token.substr(0,2).compare("0x")) {
+							token = token.substr(2,token.size()-2);
+							istringstream conv(token);
+							conv >> hex >> imm;	
+						}
+						else
+							conv >> imm;
+
+						imm &= 0x7F;
+						cout << imm << endl;
+						if( !(imm >= 0x80 && imm <= 0xFF) && !(imm >= 0 && imm <= 0x7F) ) {
+							cout << "Immediate too large or small: " << imm << endl;
+							exit(1);
+						}
+						instr |= imm;
+					}
+					else {
 
 						for(unsigned int j = 0; j < reservedwords.size(); ++j) {
-							if(reg.compare(reservedwords[j].first) == 0) {
+							if(token.compare(reservedwords[j].first) == 0) {
 								instr = instr | (reservedwords[j].second << 4);
 								break;
 							}
 						}
+					}
 
 
 					cout << hex << instr << endl;
@@ -479,9 +547,30 @@ void store(INSTRSIZE start) {
 	for(unsigned int i = 0; i < instructions.size(); ++i, ++start) {
 		memory[start] = instructions[i];
 	}
+	instructions.clear();
 }
 
 void store(INSTRSIZE start, INSTRSIZE value) {
 	memory[start] = value;
 }
 
+void range(std::ostream& os, INSTRSIZE value, INSTRSIZE begin, INSTRSIZE end) {
+	os << '['; 
+	hprint(os,begin);
+	os << "..";
+	hprint(os,end);
+	os << "] : ";
+	hprint(os,value);
+	os << ";\n";
+
+}
+
+void hprint(std::ostream& os, INSTRSIZE value) {
+	os << std::hex;
+	os << ((value & 0xf000) >> 12) <<
+		((value & 0x0f00) >> 8) <<
+		((value & 0x00f0) >> 4) <<
+		(value & 0x000f); 
+
+	os << std::dec;
+}
