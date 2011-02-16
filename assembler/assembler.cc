@@ -97,6 +97,7 @@ int main(int argc, char* argv[]) {
 
 	std::stringstream parsed(std::stringstream::in | std::stringstream::out);
 	firstpass(assembly,parsed);
+	
 	secondpass(parsed);
 
 	writefile(out);
@@ -132,10 +133,10 @@ void writefile(const std::string &writefile) {
 	ofstream of(writefile.c_str(), ofstream::binary);
 
 	// Required mif headers. see http://www.altera.com/support/examples/verilog/ver_ram.html#mif
-	of << "WIDTH = " << IMGWIDTH << ";\n"; 
-	of << "DEPTH = " << IMGSIZE <<" ;\n";
-	of << "ADDRESS_RADIX = HEX;\n";		// unsigned decimal
-	of << "DATA_RADIX = HEX;\n";	// unsigned decimal with WIDTH bits
+	of << "WIDTH=" << IMGWIDTH << ";\n"; 
+	of << "DEPTH=" << IMGSIZE <<";\n";
+	of << "ADDRESS_RADIX=HEX;\n";		// unsigned decimal
+	of << "DATA_RADIX=HEX;\n";	// unsigned decimal with WIDTH bits
 
 	of << "CONTENT BEGIN\n";
 
@@ -219,8 +220,11 @@ void firstpass(const std::string& assembly, std::stringstream& out) {
 							break;
 						}
 					}
-					if(!found)
+					if(!found) {
 						datalabel.push_back(pair<string,INSTRSIZE>(token,address));
+						++address;
+						continue;
+					}
 
 				}
 				// Hex?
@@ -235,8 +239,8 @@ void firstpass(const std::string& assembly, std::stringstream& out) {
 					conv >> value;
 				}
 				// Put decimal address into parsed data
-				store(address/2,value);
-				address+=2;	// Leave a space for the data
+				store(address,value);
+				++address;	// Leave a space for the data
 			}
 			else {
 				cout << "Invalid token: " << token << endl;
@@ -289,14 +293,16 @@ void firstpass(const std::string& assembly, std::stringstream& out) {
 	unsigned int loc = 0;
 	for(unsigned int i = 0; i < datalabel.size(); ++i) {
 		for(unsigned int j = 0; j < labels.size(); ++j) {
-			if(!labels[j].first.compare(datalabel[i].first))
+			if(datalabel[i].first.compare(labels[j].first) == 0) {
 				loc=j;
-				goto found;
+				goto found; // lololol
+			}
 		}
 		cout << "Error: Missing label " << datalabel[i].first << endl;
 		exit(1);
 found:
-		store(datalabel[i].second,labels[loc].second);
+		// store(address,value)
+		store(datalabel[i].second,labels[loc].second*2);
 	}
 }
 
@@ -306,13 +312,13 @@ void secondpass(std::stringstream& is) {
 	using namespace std;
 
 	string token;
-	unsigned long int instrcnt = 0;
+	int instrcnt = 0;
 	INSTRSIZE address = 0;
-	bool reverse12, offset, ALU, B, ADDI;
+	bool reverse12, offset, ALU, B, ADDI, JMP, LW;
 
 	// Read each token
 	while(is.good()) {
-		offset = reverse12 = ALU = ADDI = B = false;
+		offset = reverse12 = ALU = ADDI = B = JMP = LW = false;
 		is >> token;
 		if(!is.good())
 			break;
@@ -352,8 +358,17 @@ void secondpass(std::stringstream& is) {
 						ADDI = true;
 					else if ( (instr>>13) == 5  || (instr>>13) == 4 )
 						reverse12 = true;
-					else if ( (instr>>14) == 1 || (instr>>13) == 3 )
+					else if ( (instr>>14) == 1 || (instr>>13) == 3 ) {
 						B = true;
+						offset = true;
+					}
+					else if( (instr>>14) ==3) {
+						offset=true;
+						JMP=true;
+					}
+
+					if( (instr>>13) == 4)
+						LW=true;
 
 					// Next comes a register
 					if(is.good())
@@ -365,9 +380,9 @@ void secondpass(std::stringstream& is) {
 
 					for(unsigned int j = 0; j < reservedwords.size(); ++j) {
 						if(token.compare(reservedwords[j].first) == 0) {
-							if(ALU)
+							if(ALU || JMP)
 								instr = instr | (reservedwords[j].second << 4);
-							if(B)
+							else if(B)
 								instr = instr | (reservedwords[j].second << 10);
 							else
 								instr = instr | (reservedwords[j].second << 7);
@@ -383,7 +398,6 @@ void secondpass(std::stringstream& is) {
 
 					// Is it an offset?
 					if(isdigit(token.at(0)) || token.at(0)=='-') {
-						offset = true;
 						istringstream conv(token);
 						INSTRSIZE imm;
 
@@ -403,14 +417,24 @@ void secondpass(std::stringstream& is) {
 						}
 						instr |= imm;
 					}
+					else if(LW) {
+						cout << "LW" << endl;
+						cout << hex;
+						for(int j=0; j < labels.size(); ++j) {
+							if(!labels[j].first.compare(token)) {
+								instr |= (labels[j].second-instrcnt) & 0x7F;
+								cout << labels[j].first << ' ' <<  labels[j].second << ' ' << instrcnt << ' ' << labels[j].second - instrcnt << ' ' << ((labels[j].second-instrcnt) & 0x7f) << endl;
+								break;
+							}
+						}
+
+					}
 					else {
-
-
 						for(unsigned int j = 0; j < reservedwords.size(); ++j) {
 							if(token.compare(reservedwords[j].first) == 0) {
-								if(ALU)
+								if(ALU || JMP)
 									instr = instr | (reservedwords[j].second << 10);
-								if(reverse12 || B)
+								else if(reverse12 || B)
 									instr = instr | (reservedwords[j].second << 7);
 								else
 									instr = instr | (reservedwords[j].second << 10);
@@ -418,6 +442,8 @@ void secondpass(std::stringstream& is) {
 							}
 						}
 					}
+
+					if(!JMP) {
 					
 					// Next comes a register?
 					if( is.good())
@@ -425,7 +451,6 @@ void secondpass(std::stringstream& is) {
 					else 
 						cout << "Error: Incomplete file?" << endl;
 					if(isdigit(token.at(0)) || token.at(0)=='-') {
-						offset = true;
 						istringstream conv(token);
 						INSTRSIZE imm;
 
@@ -446,8 +471,6 @@ void secondpass(std::stringstream& is) {
 						instr |= imm;
 					}
 					else if(B||ADDI) {
-						offset = true;
-						cout << hex;
 						for(int j=0; j < labels.size(); ++j) {
 							if(!labels[j].first.compare(token)) {
 								instr |= (labels[j].second-instrcnt) & 0x7F;
@@ -462,13 +485,14 @@ void secondpass(std::stringstream& is) {
 							if(token.compare(reservedwords[j].first) == 0) {
 								if(ALU)
 									instr = instr | (reservedwords[j].second << 7);
-								if(reverse12)
+								else if(reverse12)
 									instr = instr | (reservedwords[j].second << 10);
 								else
 									instr = instr | (reservedwords[j].second << 4);
 								break;
 							}
 						}
+					}
 					}
 
 
