@@ -45,6 +45,7 @@ void store(INSTRSIZE start);
 void store(INSTRSIZE start, INSTRSIZE value);
 void range(std::ostream& os, INSTRSIZE value, INSTRSIZE begin, INSTRSIZE end);
 void hprint(std::ostream& os, INSTRSIZE value);
+std::string stripcomment(std::stringstream& is, const std::string& token);
 
 int main(int argc, char* argv[]) {
 
@@ -103,6 +104,14 @@ int main(int argc, char* argv[]) {
 		hprint(std::cout,labels[i].second);
 		std::cout << '\n';
 	}
+
+	/*
+	do {
+		std::string x;
+		parsed >> x;
+		std::cout << x << ' ';
+	} while(parsed.good());
+	*/
 	
 	secondpass(parsed);
 
@@ -185,6 +194,8 @@ void firstpass(const std::string& assembly, std::stringstream& out) {
 	while(is.good()) {
 		is >> token;
 
+		token = stripcomment(is,token);
+
 		if((index = token.find(':', 0)) != -1) {	// If token is a label, parse.
 			string label = token.substr(0,index);
 
@@ -201,9 +212,6 @@ void firstpass(const std::string& assembly, std::stringstream& out) {
 		}
 		else if(!is.good())
 			break;
-		else if(!token.rfind(';', 0)) {	// If token starts with a comment, move to next line
-			getline(is, token);
-		}
 		else if(token.at(0) == '.') {
 			// .ORIG || .DATA
 			if(!token.compare(".ORIG")) {
@@ -212,6 +220,7 @@ void firstpass(const std::string& assembly, std::stringstream& out) {
 
 				// Get the address
 				is >> token;
+				token = stripcomment(is,token);
 				// Hex?
 				if(!token.substr(0,2).compare("0x")) {
 					token = token.substr(2,token.size()-2);
@@ -231,6 +240,7 @@ void firstpass(const std::string& assembly, std::stringstream& out) {
 				INSTRSIZE value = 0;
 				// Get the address
 				is >> token;
+				token = stripcomment(is,token);
 				// Label?
 				if(isalpha(token.at(0))) {
 					// scan for existing labels
@@ -269,7 +279,7 @@ void firstpass(const std::string& assembly, std::stringstream& out) {
 				exit(1);
 			}
 		}
-		else {	// Token is neither label nor comment. If it's an instruction, increase the address and continue.
+		else if (token.size() > 0) {	// Token is neither label nor comment. If it's an instruction, increase the address and continue.
 			// Replace other separators with white space
 			unsigned int loc = 0;
 			while( (loc=token.find(',',loc)) != -1)
@@ -395,8 +405,10 @@ void secondpass(std::stringstream& is) {
 						SW=true;
 
 					//---- The first argument to an instruction is always a register
-					if(is.good())
+					if(is.good()) {
 						is >> token;
+						token = stripcomment(is,token);
+					}
 					else
 						cout << "Error: Incomplete file?" << endl;
 
@@ -417,8 +429,10 @@ void secondpass(std::stringstream& is) {
 
 					//---- The second argument to an instruction is {register|offset|label offset}
 					//---- The offsets are due to the way the first pass does things
-					if(is.good())
+					if(is.good()) {
 						is >> token;
+						token = stripcomment(is,token);
+					}
 					else
 						cout << "Error: Incomplete file?" << endl;
 
@@ -475,8 +489,10 @@ void secondpass(std::stringstream& is) {
 					if(!JMP && !NOT) {
 						
 						// Next comes a register?
-						if( is.good())
+						if(is.good()) {
 							is >> token;
+							token = stripcomment(is,token);
+						}
 						else 
 							cout << "Error: Incomplete file?" << endl;
 
@@ -664,4 +680,23 @@ void hprint(std::ostream& os, INSTRSIZE value) {
 		(value & 0x000f); 
 
 	os << std::dec;
+}
+
+std::string stripcomment(std::stringstream& is, const std::string& token) {
+	using namespace std;
+
+	string toss;
+	size_t loc;
+	if((loc=token.find(';', 0)) != string::npos) {	// If token has a comment, move to next line
+		if(is.good())
+			getline(is, toss);
+		if(loc != 0) {
+			toss=token.substr(0,loc);
+			return toss;
+		}
+	}
+
+	if(token.size()==1)
+		return " ";
+	return token;
 }
