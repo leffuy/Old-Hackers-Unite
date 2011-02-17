@@ -7,31 +7,36 @@ module Proj1(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	output [6:0] HEX0,HEX1,HEX2,HEX3;
 
 	// purely for testing
-	//assign HEX3 = thebus[15:9];
-	//assign HEX2 = thebus[8:2];
-	//assign HEX1 = thebus[1:0];
-	//assign LEDR[9:0] = IR[15:6];
-	//assign LEDG[7:2] = IR[5:0];
+	//assign LEDR = MAR;
+	//assign LEDG = opcode1;
 
-	//wire  clk = KEY[3];
-	wire clk = CLOCK_50;
-	wire lock = 1'b1;
+	wire clk,lock;
+	// DONE: Create a PLL using the MegaWizard in order for this to work
+	PLL PLL(.inclk0(CLOCK_50),.c0 (clk),.locked(lock));
+
+	//wire  clk = KEY[0];
+	//wire clk = CLOCK_50;
+	//wire lock = 1'b1;
 
 	// Create the processor's bus
 	parameter DBITS = 16;
 	parameter BUSZ = {DBITS{1'bZ}};
+
 	tri [(DBITS-1):0] thebus;
 
 	// Create PC and connect it to the bus
 	reg [(DBITS-1):0] PC = 16'h0200;
-	reg LdPC, DrPC, IncPC;
+	reg LdPC, DrPC, IncPC, JmpPC;
 	always @(posedge clk) begin
 		if(LdPC)
 			PC <= thebus;
 		else if(IncPC)
 			PC <= PC + 16'h2;
+		else if(ShOff)
+			PC <= (PC + imm*16'h2);
 	end
 	assign thebus = DrPC?PC:BUSZ;
+	assign thebus = JmpPC?(PC + 16'h2):BUSZ;
 
 	// Create the memory unit and connect to the bus
 	reg [(DBITS-1):0] MAR;  // MAR register
@@ -52,17 +57,29 @@ module Proj1(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 		.ADDR(MAR[12:1]),
 		.DIN(memin),
 		.DOUT(MemVal),.WE(WrMem&&MemEnable),.CLK(clk));
+		
+	// Reading from mapped io
+	reg [(DBITS-1):0] iomap;
+	always @(DrMem or KEY or MAR or SW or HEX0 or LEDR or LEDG) begin
+		iomap <= 16'hDEAD;
+		if(MAR == 16'hfff0)
+			iomap <= KEY;
+		else if(MAR == 16'hfff2)
+			iomap <= SW;
+		else if(MAR == 16'hfff8)
+			iomap <= HEX0;
+		else if(MAR == 16'hfffa)
+			iomap <= LEDR;
+		else if(MAR == 16'hfffc)
+			iomap <= LEDG;
+	end
+	// DONE: memout should get values of KEY (not !KEY) and SW when addresses of those devices are used
+	wire [(DBITS-1):0] memout=MemEnable?MemVal:iomap;
 
 	// Connect memory array output to bus (controlled by DrMem)
 	assign thebus=DrMem?memout:BUSZ;
-		
-	// Reading from mapped IO
-	wire [(DBITS-1):0] memout = MemEnable?MemVal:
-		(MAR[15:0]==16'hfff0)? KEY[3:0]:
-		(MAR[15:0]==16'hfff2)? SW[9:0]:
-		16'hDEAD;
 
-	// Memory mapped addresses
+	// Write to memory mapped addresses
 	reg [15:0] rhex, rledg, rledr;
 	assign LEDR[9:0] = rledr[9:0];
 	assign LEDG[7:0] = rledg[7:0];
@@ -80,17 +97,14 @@ module Proj1(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	reg [(DBITS-1):0] IR;
 	reg DrOff, LdIR;
 	always @(posedge clk)
-	if(LdIR)
-		IR <= thebus;
+		if(LdIR)
+			IR <= thebus;
 
 	// Connect immediate to the bus (goes through SXT. Ctrl by DrOff)
 	wire [15:0] imm;
 	reg ShOff;
 	SXT #(.IBITS(7),.OBITS(16)) OFF(IR[6:0], imm);
-	// For plain offset
 	assign thebus = DrOff?imm:BUSZ;
-	// For branch offset
-	assign thebus = ShOff?(imm*2'b10 + PC + 3'b100):BUSZ;
 
 	// DONE: create opcode1, rsrc1, rsrc2, etc. signals from the IR (needed by control unit)
 	wire [2:0] opcode1 = IR[15:13],
@@ -104,7 +118,7 @@ module Proj1(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	reg WrReg;
 	wire [(DBITS-1):0] regval;
 	reg DrReg;
-	REGFILE #(.RBITS(16),.DBITS(DBITS),.NREGS(8)) regfile(
+	REGFILE #(.RBITS(3),.DBITS(DBITS),.NREGS(8)) regfile(
 		.REGNO(regno),.WrREG(WrReg),.DIN(thebus),
 		.DOUT(regval),.CLK(clk));
 	assign thebus = DrReg?regval:BUSZ;
@@ -205,12 +219,12 @@ module Proj1(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	reg [(S_BITS-1):0] state=S_FETCH1,next_state;
 	always @(state or opcode1 or rsrc1 or rsrc2 or rdst or opcode2 or ALUzero or thebus) begin
 		ALUfunc=ALU_OP2_ADD;
-		{LdPC,DrPC,IncPC,LdMAR,WrMem,DrMem,LdIR,DrOff,ShOff, LdA, LdB,DrALU,regno,DrReg,WrReg,next_state}=
-			{1'b0,1'b0,1'b0, 1'b0, 1'b0, 1'b0,1'b0, 1'b0, 1'b0,1'b0,1'b0, 1'b0, 3'b0, 1'b0, 1'b0,state+S_ONE};
+		{LdPC,DrPC,IncPC,LdMAR,WrMem,DrMem,LdIR,DrOff,ShOff, LdA, LdB,DrALU,regno,DrReg,WrReg,JmpPC,next_state}=
+			{1'b0,1'b0,1'b0, 1'b0, 1'b0, 1'b0,1'b0, 1'b0, 1'b0,1'b0,1'b0, 1'b0, 3'b0, 1'b0,1'b0,1'b0,state+S_ONE};
 		case(state)
 			S_FETCH1: {DrPC,LdMAR}={1'b1,1'b1};
 			S_FETCH2: {DrMem,LdIR,IncPC}={1'b1,1'b1,1'b1};
-			S_FETCH3: begin	// The bus is not being used in this state...
+			S_FETCH3: begin	// The bus is not being used in this state... might be possible to load a register.
 				case(opcode1)
 					OP1_ALU:  next_state=S_ALU1;
 					OP1_ADDI: next_state=S_ALU_ADDI1;
@@ -234,7 +248,7 @@ module Proj1(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 				next_state=S_BEQ3;
 				end
 			S_BEQ3: begin
-				ALUfunc=ALU_OP2_NXOR;
+				ALUfunc=ALU_OP2_XOR;
 				DrALU=1'b1;
 				next_state=S_BEQ4;
 				if(thebus)
@@ -242,7 +256,6 @@ module Proj1(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 				end
 			S_BEQ4: begin
 				ShOff=1'b1;
-				LdPC=1'b1;
 				next_state=S_FETCH1;
 				end
 			S_BNE1: begin
@@ -261,12 +274,11 @@ module Proj1(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 				ALUfunc=ALU_OP2_XOR;
 				DrALU=1'b1;
 				next_state=S_BNE4;
-				if(thebus)
+				if(!thebus)
 					next_state=S_FETCH1;
 				end
 			S_BNE4: begin
 				ShOff=1'b1;
-				LdPC=1'b1;
 				next_state=S_FETCH1;
 				end
 			S_LW1: begin
@@ -286,13 +298,13 @@ module Proj1(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 				next_state=S_LW4;
 				end
 			S_LW4: begin
-				regno=rdst;
+				regno=rsrc2;
 				WrReg=1'b1;
 				DrMem=1'b1;
 				next_state=S_FETCH1;
 				end
 			S_SW1: begin
-				regno=rsrc2;
+				regno=rsrc1;
 				DrReg=1'b1;
 				LdA=1'b1;
 				next_state=S_SW2;
@@ -308,65 +320,28 @@ module Proj1(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 				next_state=S_SW4;
 				end
 			S_SW4: begin
-				regno=rsrc1;
+				regno=rsrc2;
 				DrReg=1'b1;
 				WrMem=1'b1;
 				next_state=S_FETCH1;
 				end
 			S_JMP1: begin
+				DrPC=1'b1;
 				regno=rdst;
 				WrReg=1'b1;
 				next_state=S_JMP2;
 				end
 			S_JMP2: begin
-				LdPC=1'b1;
 				DrReg=1'b1;
 				regno=rsrc1;
+				LdPC=1'b1;
 				next_state=S_FETCH1;
 				end
 			S_ALU1: begin
 				regno=rsrc1;
 				DrReg=1'b1;
 				LdA=1'b1;
-				case(opcode2)
-					ALU_OP2_ADD: next_state=S_ALU_ADD1;
-					ALU_OP2_SUB: begin
-						next_state=S_ALU_SUB1;
-						ALUfunc=ALU_OP2_SUB;
-						end
-					ALU_OP2_LT:  begin
-						next_state=S_ALU_ADD1;
-						ALUfunc=ALU_OP2_LT;
-						end
-					ALU_OP2_LE:  begin
-						next_state=S_ALU_ADD1;
-						ALUfunc=ALU_OP2_LE;
-						end
-					ALU_OP2_AND:  begin
-						next_state=S_ALU_ADD1;
-						ALUfunc=ALU_OP2_AND;
-						end
-					ALU_OP2_OR:  begin
-						next_state=S_ALU_ADD1;
-						ALUfunc=ALU_OP2_OR;
-						end
-					ALU_OP2_XOR:  begin
-						next_state=S_ALU_ADD1;
-						ALUfunc=ALU_OP2_XOR;
-						end
-					ALU_OP2_NAND:  begin
-						next_state=S_ALU_ADD1;
-						ALUfunc=ALU_OP2_NAND;
-						end
-					ALU_OP2_NOR:  begin
-						next_state=S_ALU_ADD1;
-						ALUfunc=ALU_OP2_NOR;
-						end
-					ALU_OP2_NXOR:  begin
-						next_state=S_ALU_ADD1;
-						ALUfunc=ALU_OP2_NXOR;
-						end
-					endcase
+				next_state=S_ALU_ADD1;
 				end
 			S_ALU_SUB1: begin
 				regno=rsrc2;
@@ -380,13 +355,13 @@ module Proj1(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 				next_state=S_ALU_ADDI2;
 				end
 			S_ALU_ADDI2: begin
-				regno=rsrc2;
+				regno=rsrc1;
 				DrReg=1'b1;
 				LdA=1'b1;
 				next_state=S_ALU_ADDI3;
 				end
 			S_ALU_ADDI3: begin
-				regno=rsrc1;
+				regno=rsrc2;
 				DrALU=1'b1;
 				WrReg=1'b1;
 				next_state=S_FETCH1;
@@ -398,6 +373,18 @@ module Proj1(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 				next_state=S_ALU_ADD2;
 				end
 			S_ALU_ADD2:	begin
+				case(opcode2)
+					ALU_OP2_ADD: ALUfunc=ALU_OP2_ADD;
+					ALU_OP2_SUB: ALUfunc=ALU_OP2_SUB;
+					ALU_OP2_LT:  ALUfunc=ALU_OP2_LT;
+					ALU_OP2_LE:  ALUfunc=ALU_OP2_LE;
+					ALU_OP2_AND: ALUfunc=ALU_OP2_AND;
+					ALU_OP2_OR:  ALUfunc=ALU_OP2_OR;
+					ALU_OP2_XOR: ALUfunc=ALU_OP2_XOR;
+					ALU_OP2_NAND: ALUfunc=ALU_OP2_NAND;
+					ALU_OP2_NOR: ALUfunc=ALU_OP2_NOR;
+					ALU_OP2_NXOR: ALUfunc=ALU_OP2_NXOR;
+				endcase
 				DrALU=1'b1;
 				regno=rdst;
 				WrReg=1'b1;
