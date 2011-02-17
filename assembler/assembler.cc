@@ -325,11 +325,11 @@ void secondpass(std::stringstream& is) {
 	string token;
 	int instrcnt = 0;
 	INSTRSIZE address = 0;
-	bool reverse12, offset, ALU, B, ADDI, JMP, LW, NOT, SUBI;
+	bool reverse12, offset, ALU, B, ADDI, JMP, LW, SW, NOT, SUBI;
 
 	// Read each token
 	while(is.good()) {
-		offset = reverse12 = ALU = ADDI = B = JMP = LW = NOT = SUBI = false;
+		offset = reverse12 = ALU = ADDI = B = JMP = LW = SW = NOT = SUBI = false;
 		is >> token;
 		if(!is.good())
 			break;
@@ -391,8 +391,10 @@ void secondpass(std::stringstream& is) {
 
 					if( (instr>>13) == 4)
 						LW=true;
+					else if( (instr>>13) == 5)
+						SW=true;
 
-					// Next comes a register
+					//---- The first argument to an instruction is always a register
 					if(is.good())
 						is >> token;
 					else
@@ -400,7 +402,6 @@ void secondpass(std::stringstream& is) {
 
 					cout << token << '\t';
 
-					//---- The first argument to an instruction is always a register
 
 					for(unsigned int j = 0; j < reservedwords.size(); ++j) {
 						if(token.compare(reservedwords[j].first) == 0) {
@@ -414,7 +415,8 @@ void secondpass(std::stringstream& is) {
 						}
 					}
 
-					// Next comes a register
+					//---- The second argument to an instruction is {register|offset|label offset}
+					//---- The offsets are due to the way the first pass does things
 					if(is.good())
 						is >> token;
 					else
@@ -443,7 +445,7 @@ void secondpass(std::stringstream& is) {
 						}
 						instr |= imm;
 					}
-					else if(LW) {
+					else if(LW || SW) {
 						cout << hex;
 						for(int j=0; j < labels.size(); ++j) {
 							if(!labels[j].first.compare(token)) {
