@@ -444,55 +444,55 @@ void secondpass(std::stringstream& is) {
 					}
 
 					if(!JMP) {
-					
-					// Next comes a register?
-					if( is.good())
-						is >> token;
-					else 
-						cout << "Error: Incomplete file?" << endl;
-					if(isdigit(token.at(0)) || token.at(0)=='-') {
-						istringstream conv(token);
-						INSTRSIZE imm;
-
-						// Hex -> decimal for immediates
-						if(!token.substr(0,2).compare("0x")) {
-							token = token.substr(2,token.size()-2);
+						
+						// Next comes a register?
+						if( is.good())
+							is >> token;
+						else 
+							cout << "Error: Incomplete file?" << endl;
+						if(isdigit(token.at(0)) || token.at(0)=='-') {
 							istringstream conv(token);
-							conv >> hex >> imm;	
-						}
-						else
-							conv >> imm;
+							INSTRSIZE imm;
 
-						imm &= 0x7F;
-						if( !(imm >= 0x80 && imm <= 0xFF) && !(imm >= 0 && imm <= 0x7F) ) {
-							cout << "Immediate too large or small: " << imm << endl;
-							exit(1);
+							// Hex -> decimal for immediates
+							if(!token.substr(0,2).compare("0x")) {
+								token = token.substr(2,token.size()-2);
+								istringstream conv(token);
+								conv >> hex >> imm;	
+							}
+							else
+								conv >> imm;
+
+							imm &= 0x7F;
+							if( !(imm >= 0x80 && imm <= 0xFF) && !(imm >= 0 && imm <= 0x7F) ) {
+								cout << "Immediate too large or small: " << imm << endl;
+								exit(1);
+							}
+							instr |= imm;
 						}
-						instr |= imm;
-					}
-					else if(B||ADDI) {
-						for(int j=0; j < labels.size(); ++j) {
-							if(!labels[j].first.compare(token)) {
-								instr |= (labels[j].second-instrcnt) & 0x7F;
-								break;
+						else if(B||ADDI) {
+							for(int j=0; j < labels.size(); ++j) {
+								if(!labels[j].first.compare(token)) {
+									instr |= (labels[j].second-instrcnt) & 0x7F;
+									break;
+								}
+							}
+
+						}
+						else {
+
+							for(unsigned int j = 0; j < reservedwords.size(); ++j) {
+								if(token.compare(reservedwords[j].first) == 0) {
+									if(ALU)
+										instr = instr | (reservedwords[j].second << 7);
+									else if(reverse12)
+										instr = instr | (reservedwords[j].second << 10);
+									else
+										instr = instr | (reservedwords[j].second << 4);
+									break;
+								}
 							}
 						}
-
-					}
-					else {
-
-						for(unsigned int j = 0; j < reservedwords.size(); ++j) {
-							if(token.compare(reservedwords[j].first) == 0) {
-								if(ALU)
-									instr = instr | (reservedwords[j].second << 7);
-								else if(reverse12)
-									instr = instr | (reservedwords[j].second << 10);
-								else
-									instr = instr | (reservedwords[j].second << 4);
-								break;
-							}
-						}
-					}
 					}
 
 
