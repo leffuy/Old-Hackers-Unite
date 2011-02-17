@@ -696,7 +696,7 @@ std::string stripcomment(std::stringstream& is, const std::string& token) {
 		}
 	}
 
-	if(token.size()==1)
+	if(token.size()==1 && token.at(0) == ';')
 		return " ";
 	return token;
 }
