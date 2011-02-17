@@ -67,7 +67,7 @@ module Proj1(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 		else if(MAR == 16'hfff2)
 			iomap <= SW;
 		else if(MAR == 16'hfff8)
-			iomap <= HEX0;
+			iomap <= rhex;
 		else if(MAR == 16'hfffa)
 			iomap <= LEDR;
 		else if(MAR == 16'hfffc)
@@ -83,7 +83,6 @@ module Proj1(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	reg [15:0] rhex, rledg, rledr;
 	assign LEDR[9:0] = rledr[9:0];
 	assign LEDG[7:0] = rledg[7:0];
-	assign HEX0[6:0] = rhex[6:0];
 	always @(posedge clk) begin
 		if(MAR==16'hfff8)
 			rhex <= WrMem?thebus:rhex;
@@ -395,6 +394,7 @@ module Proj1(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	always @(posedge clk)
 		if(lock)
 			state<=next_state;
+	SevenSeg h0(HEX0,rhex);
 endmodule
 
 // ==MODULES==
