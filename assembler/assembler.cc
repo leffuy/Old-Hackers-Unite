@@ -97,6 +97,9 @@ int main(int argc, char* argv[]) {
 
 	std::stringstream parsed(std::stringstream::in | std::stringstream::out);
 	firstpass(assembly,parsed);
+
+	for(int i = 0; i < labels.size(); ++i)
+		std::cout << labels[i].first << ' ' << labels[i].second << '\n';
 	
 	secondpass(parsed);
 
@@ -205,7 +208,7 @@ void firstpass(const std::string& assembly, std::stringstream& out) {
 				// Put decimal address into parsed data
 				out << ' ' << address << ' ';
 			}
-			else if(!token.compare(".DATA")) { // Unfinished, needs to support labels :X
+			else if(!token.compare(".DATA")) { 
 				INSTRSIZE value = 0;
 				// Get the address
 				is >> token;
@@ -238,7 +241,7 @@ void firstpass(const std::string& assembly, std::stringstream& out) {
 					istringstream conv(token);
 					conv >> value;
 				}
-				// Put decimal address into parsed data
+				// Put decimal address into memory
 				store(address,value);
 				++address;	// Leave a space for the data
 			}
@@ -262,7 +265,7 @@ void firstpass(const std::string& assembly, std::stringstream& out) {
 					" has been declared more than once. The first instance will be used.\n";
 		}
 		else {	// Token is neither label nor comment. If it's an instruction, increase the address and continue.
-			// Switch ',' with ' '
+			// Replace other separators with white space
 			unsigned int loc = 0;
 			while( (loc=token.find(',',loc)) != -1)
 				token.at(loc)=' ';
@@ -274,14 +277,17 @@ void firstpass(const std::string& assembly, std::stringstream& out) {
 				token.at(loc)=' ';
 
 
-			out << ' ' <<  token << ' ';
 
 			for(i = 0; i < totalinstrs; ++i) {
 				if(token.compare(reservedwords[i].first) == 0) { // matching instruction?
+					// Pseudo instruction that just drops in a change
+					if(!token.compare("B")) 
+						token = " BEQ R0 R0 ";
 					++address;
 					break;
 				}
 			}
+			out << ' ' <<  token << ' ';
 		}
 	}
 
@@ -314,14 +320,15 @@ void secondpass(std::stringstream& is) {
 	string token;
 	int instrcnt = 0;
 	INSTRSIZE address = 0;
-	bool reverse12, offset, ALU, B, ADDI, JMP, LW;
+	bool reverse12, offset, ALU, B, ADDI, JMP, LW, NOT, SUBI;
 
 	// Read each token
 	while(is.good()) {
-		offset = reverse12 = ALU = ADDI = B = JMP = LW = false;
+		offset = reverse12 = ALU = ADDI = B = JMP = LW = NOT = SUBI = false;
 		is >> token;
 		if(!is.good())
 			break;
+		cout << "I: " << token << '\t';
 		
 		if (token.at(0) == '.') {
 			if(!token.compare(".ORIG")) {
@@ -330,6 +337,7 @@ void secondpass(std::stringstream& is) {
 				is >> address;
 				instrcnt=address;
 			}
+			cout << address << '\n';
 		}
 		else {
 			// We use this to help detect invalid code
@@ -351,8 +359,17 @@ void secondpass(std::stringstream& is) {
 							reverse12 = true;
 							instr = getValue("LE");
 						}
+						else if(!token.compare("SUBI")) {
+							SUBI=true;
+							instr = getValue("ADDI");
+						}
+						else if(!token.compare("NOT")) {
+							NOT=true;
+							instr = getValue("NOR");
+						}
 					}
-					else if ( (instr>>13) == 0 )
+					
+					if ( (instr>>13) == 0 )
 						ALU = true;
 					else if ( (instr>>13) == 1 )
 						ADDI = true;
@@ -376,6 +393,8 @@ void secondpass(std::stringstream& is) {
 					else
 						cout << "Error: Incomplete file?" << endl;
 
+					cout << token << '\t';
+
 					//---- The first argument to an instruction is always a register
 
 					for(unsigned int j = 0; j < reservedwords.size(); ++j) {
@@ -395,6 +414,8 @@ void secondpass(std::stringstream& is) {
 						is >> token;
 					else
 						cout << "Error: Incomplete file?" << endl;
+
+					cout << token << '\t';
 
 					// Is it an offset?
 					if(isdigit(token.at(0)) || token.at(0)=='-') {
@@ -418,12 +439,10 @@ void secondpass(std::stringstream& is) {
 						instr |= imm;
 					}
 					else if(LW) {
-						cout << "LW" << endl;
 						cout << hex;
 						for(int j=0; j < labels.size(); ++j) {
 							if(!labels[j].first.compare(token)) {
 								instr |= (labels[j].second*2) & 0x7F;
-								cout << labels[j].first << ' ' <<  labels[j].second << ' ' << -labels[j].second << ' ' << instrcnt << ' ' << labels[j].second - instrcnt << ' ' << ((labels[j].second-instrcnt) & 0x7f) << endl;
 								break;
 							}
 						}
@@ -438,18 +457,24 @@ void secondpass(std::stringstream& is) {
 									instr = instr | (reservedwords[j].second << 7);
 								else
 									instr = instr | (reservedwords[j].second << 10);
+								// Copy SRC1 -> SRC2 for pseudo instruction
+								if(NOT) 
+									instr = instr | (reservedwords[j].second << 7);
 								break;
 							}
 						}
 					}
 
-					if(!JMP) {
+					if(!JMP && !NOT) {
 						
 						// Next comes a register?
 						if( is.good())
 							is >> token;
 						else 
 							cout << "Error: Incomplete file?" << endl;
+
+						cout << token << '\t';
+
 						if(isdigit(token.at(0)) || token.at(0)=='-') {
 							istringstream conv(token);
 							INSTRSIZE imm;
@@ -468,6 +493,9 @@ void secondpass(std::stringstream& is) {
 								cout << "Immediate too large or small: " << imm << endl;
 								exit(1);
 							}
+							if(SUBI)
+								imm=(-imm)&0x7F;
+
 							instr |= imm;
 						}
 						else if(B||ADDI) {
@@ -496,6 +524,11 @@ void secondpass(std::stringstream& is) {
 					}
 
 
+					cout << '\t';
+					hprint(cout,instrcnt-1);
+					cout << " : ";
+					hprint(cout,instr);
+					cout << '\n';
 					instructions.push_back(instr);
 
 
@@ -503,7 +536,7 @@ void secondpass(std::stringstream& is) {
 			}
 			// Incorrect code! (or a bug above)
 			if(oldcount == instrcnt) {
-				cout << "Error: " << token << " is not an instruction!" << endl;
+				cout << "\nError: " << token << " is not an instruction!" << endl;
 				exit(1);
 			}
 		}
