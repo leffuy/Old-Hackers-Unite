@@ -4,7 +4,7 @@
 // MODULE: altpll 
 
 // ============================================================
-// File Name: pll.v
+// File Name: PLL.v
 // Megafunction Name(s):
 // 			altpll
 //
@@ -36,7 +36,7 @@
 // synopsys translate_off
 `timescale 1 ps / 1 ps
 // synopsys translate_on
-module pll (
+module PLL (
 	inclk0,
 	c0,
 	locked);
@@ -102,7 +102,7 @@ module pll (
 		altpll_component.inclk0_input_frequency = 20000,
 		altpll_component.intended_device_family = "Cyclone II",
 		altpll_component.invalid_lock_multiplier = 5,
-		altpll_component.lpm_hint = "CBX_MODULE_PREFIX=pll",
+		altpll_component.lpm_hint = "CBX_MODULE_PREFIX=PLL",
 		altpll_component.lpm_type = "altpll",
 		altpll_component.operation_mode = "NORMAL",
 		altpll_component.port_activeclock = "PORT_UNUSED",
@@ -217,7 +217,7 @@ endmodule
 // Retrieval info: PRIVATE: PLL_PFDENA_CHECK STRING "0"
 // Retrieval info: PRIVATE: PLL_TARGET_HARCOPY_CHECK NUMERIC "0"
 // Retrieval info: PRIVATE: PRIMARY_CLK_COMBO STRING "inclk0"
-// Retrieval info: PRIVATE: RECONFIG_FILE STRING "pll.mif"
+// Retrieval info: PRIVATE: RECONFIG_FILE STRING "PLL.mif"
 // Retrieval info: PRIVATE: SACN_INPUTS_CHECK STRING "0"
 // Retrieval info: PRIVATE: SCAN_FEATURE_ENABLED STRING "0"
 // Retrieval info: PRIVATE: SELF_RESET_LOCK_LOSS STRING "0"
@@ -299,12 +299,12 @@ endmodule
 // Retrieval info: CONNECT: @inclk 0 0 1 0 inclk0 0 0 0 0
 // Retrieval info: CONNECT: c0 0 0 0 0 @clk 0 0 1 0
 // Retrieval info: CONNECT: locked 0 0 0 0 @locked 0 0 0 0
-// Retrieval info: GEN_FILE: TYPE_NORMAL pll.v TRUE
-// Retrieval info: GEN_FILE: TYPE_NORMAL pll.ppf TRUE
-// Retrieval info: GEN_FILE: TYPE_NORMAL pll.inc FALSE
-// Retrieval info: GEN_FILE: TYPE_NORMAL pll.cmp FALSE
-// Retrieval info: GEN_FILE: TYPE_NORMAL pll.bsf FALSE
-// Retrieval info: GEN_FILE: TYPE_NORMAL pll_inst.v TRUE
-// Retrieval info: GEN_FILE: TYPE_NORMAL pll_bb.v TRUE
+// Retrieval info: GEN_FILE: TYPE_NORMAL PLL.v TRUE
+// Retrieval info: GEN_FILE: TYPE_NORMAL PLL.ppf TRUE
+// Retrieval info: GEN_FILE: TYPE_NORMAL PLL.inc FALSE
+// Retrieval info: GEN_FILE: TYPE_NORMAL PLL.cmp FALSE
+// Retrieval info: GEN_FILE: TYPE_NORMAL PLL.bsf FALSE
+// Retrieval info: GEN_FILE: TYPE_NORMAL PLL_inst.v TRUE
+// Retrieval info: GEN_FILE: TYPE_NORMAL PLL_bb.v TRUE
 // Retrieval info: LIB_FILE: altera_mf
 // Retrieval info: CBX_MODULE_PREFIX: ON
