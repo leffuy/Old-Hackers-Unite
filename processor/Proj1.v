@@ -60,7 +60,7 @@ module Proj1(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 		
 	// Reading from mapped io
 	reg [(DBITS-1):0] iomap;
-	always @(negedge clk) begin
+	always @(DrMem or KEY or MAR or SW or HEX0 or LEDR or LEDG) begin
 		iomap <= 16'hDEAD;
 		if(MAR == 16'hfff0)
 			iomap <= KEY;
@@ -84,7 +84,7 @@ module Proj1(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	assign LEDR[9:0] = rledr[9:0];
 	assign LEDG[7:0] = rledg[7:0];
 	assign HEX0[6:0] = rhex[6:0];
-	always @(negedge clk) begin
+	always @(posedge clk) begin
 		if(MAR==16'hfff8)
 			rhex <= WrMem?thebus:rhex;
 		else if(MAR==16'hfffa)
@@ -215,11 +215,6 @@ module Proj1(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	;
 	// DONE: Add all the states you need for your state machine
 	reg ALUzero;
-	always @(negedge clk) begin
-		ALUzero <= 1'b0;
-		if(ALUval!=16'h0000)
-			ALUzero <= DrALU?1'b1:1'b0;
-	end
 	initial ALUzero <= 0;
 	reg [(S_BITS-1):0] state=S_FETCH1,next_state;
 	always @(state or opcode1 or rsrc1 or rsrc2 or rdst or opcode2 or ALUzero or thebus) begin
@@ -337,54 +332,16 @@ module Proj1(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 				next_state=S_JMP2;
 				end
 			S_JMP2: begin
+				DrReg=1'b1;
 				regno=rsrc1;
 				LdPC=1'b1;
-				DrReg=1'b1;
 				next_state=S_FETCH1;
 				end
 			S_ALU1: begin
 				regno=rsrc1;
 				DrReg=1'b1;
 				LdA=1'b1;
-				case(opcode2)
-					ALU_OP2_ADD: next_state=S_ALU_ADD1;
-					ALU_OP2_SUB: begin
-						next_state=S_ALU_SUB1;
-						ALUfunc=ALU_OP2_SUB;
-						end
-					ALU_OP2_LT:  begin
-						next_state=S_ALU_ADD1;
-						ALUfunc=ALU_OP2_LT;
-						end
-					ALU_OP2_LE:  begin
-						next_state=S_ALU_ADD1;
-						ALUfunc=ALU_OP2_LE;
-						end
-					ALU_OP2_AND:  begin
-						next_state=S_ALU_ADD1;
-						ALUfunc=ALU_OP2_AND;
-						end
-					ALU_OP2_OR:  begin
-						next_state=S_ALU_ADD1;
-						ALUfunc=ALU_OP2_OR;
-						end
-					ALU_OP2_XOR:  begin
-						next_state=S_ALU_ADD1;
-						ALUfunc=ALU_OP2_XOR;
-						end
-					ALU_OP2_NAND:  begin
-						next_state=S_ALU_ADD1;
-						ALUfunc=ALU_OP2_NAND;
-						end
-					ALU_OP2_NOR:  begin
-						next_state=S_ALU_ADD1;
-						ALUfunc=ALU_OP2_NOR;
-						end
-					ALU_OP2_NXOR:  begin
-						next_state=S_ALU_ADD1;
-						ALUfunc=ALU_OP2_NXOR;
-						end
-					endcase
+				next_state=S_ALU_ADD1;
 				end
 			S_ALU_SUB1: begin
 				regno=rsrc2;
@@ -416,6 +373,18 @@ module Proj1(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 				next_state=S_ALU_ADD2;
 				end
 			S_ALU_ADD2:	begin
+				case(opcode2)
+					ALU_OP2_ADD: ALUfunc=ALU_OP2_ADD;
+					ALU_OP2_SUB: ALUfunc=ALU_OP2_SUB;
+					ALU_OP2_LT:  ALUfunc=ALU_OP2_LT;
+					ALU_OP2_LE:  ALUfunc=ALU_OP2_LE;
+					ALU_OP2_AND: ALUfunc=ALU_OP2_AND;
+					ALU_OP2_OR:  ALUfunc=ALU_OP2_OR;
+					ALU_OP2_XOR: ALUfunc=ALU_OP2_XOR;
+					ALU_OP2_NAND: ALUfunc=ALU_OP2_NAND;
+					ALU_OP2_NOR: ALUfunc=ALU_OP2_NOR;
+					ALU_OP2_NXOR: ALUfunc=ALU_OP2_NXOR;
+				endcase
 				DrALU=1'b1;
 				regno=rdst;
 				WrReg=1'b1;
