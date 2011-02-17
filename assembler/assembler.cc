@@ -98,8 +98,11 @@ int main(int argc, char* argv[]) {
 	std::stringstream parsed(std::stringstream::in | std::stringstream::out);
 	firstpass(assembly,parsed);
 
-	for(int i = 0; i < labels.size(); ++i)
-		std::cout << labels[i].first << ' ' << labels[i].second << '\n';
+	for(int i = 0; i < labels.size(); ++i) {
+		std::cout << labels[i].first << ' '; 
+		hprint(std::cout,labels[i].second);
+		std::cout << '\n';
+	}
 	
 	secondpass(parsed);
 
@@ -181,6 +184,8 @@ void firstpass(const std::string& assembly, std::stringstream& out) {
 	// Read each token
 	while(is.good()) {
 		is >> token;
+		if(!is.good())
+			break;
 
 		if(!token.rfind(';', 0)) {	// If token starts with a comment, move to next line
 			getline(is, token);
