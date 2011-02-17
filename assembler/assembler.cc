@@ -328,7 +328,7 @@ void secondpass(std::stringstream& is) {
 				if(instructions.size()>0)
 					store(address);
 				is >> address;
-				instrcnt=0;
+				instrcnt=address;
 			}
 		}
 		else {
@@ -422,8 +422,8 @@ void secondpass(std::stringstream& is) {
 						cout << hex;
 						for(int j=0; j < labels.size(); ++j) {
 							if(!labels[j].first.compare(token)) {
-								instr |= (labels[j].second-instrcnt) & 0x7F;
-								cout << labels[j].first << ' ' <<  labels[j].second << ' ' << instrcnt << ' ' << labels[j].second - instrcnt << ' ' << ((labels[j].second-instrcnt) & 0x7f) << endl;
+								instr |= (labels[j].second*2) & 0x7F;
+								cout << labels[j].first << ' ' <<  labels[j].second << ' ' << -labels[j].second << ' ' << instrcnt << ' ' << labels[j].second - instrcnt << ' ' << ((labels[j].second-instrcnt) & 0x7f) << endl;
 								break;
 							}
 						}
@@ -504,7 +504,7 @@ void secondpass(std::stringstream& is) {
 			// Incorrect code! (or a bug above)
 			if(oldcount == instrcnt) {
 				cout << "Error: " << token << " is not an instruction!" << endl;
-				//exit(1);
+				exit(1);
 			}
 		}
 	}
