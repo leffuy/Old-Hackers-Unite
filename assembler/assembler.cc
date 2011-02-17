@@ -184,10 +184,24 @@ void firstpass(const std::string& assembly, std::stringstream& out) {
 	// Read each token
 	while(is.good()) {
 		is >> token;
-		if(!is.good())
-			break;
 
-		if(!token.rfind(';', 0)) {	// If token starts with a comment, move to next line
+		if((index = token.find(':', 0)) != -1) {	// If token is a label, parse.
+			string label = token.substr(0,index);
+
+			unsigned int size = labels.size();
+			for(i = 0; i < size; ++i) 
+				if(!label.compare(labels[i].first))
+					break;
+
+			if(i == size)	// If label has not been initialized before, add it to labels
+				labels.push_back(pair<string,INSTRSIZE>(label,address));
+			else
+				cout << "Warning: label " << label <<
+					" has been declared more than once. The first instance will be used.\n";
+		}
+		else if(!is.good())
+			break;
+		else if(!token.rfind(';', 0)) {	// If token starts with a comment, move to next line
 			getline(is, token);
 		}
 		else if(token.at(0) == '.') {
@@ -254,20 +268,6 @@ void firstpass(const std::string& assembly, std::stringstream& out) {
 				cout << "Invalid token: " << token << endl;
 				exit(1);
 			}
-		}
-		else if((index = token.find(':', 0)) != -1) {	// If token is a label, parse.
-			string label = token.substr(0,index);
-
-			unsigned int size = labels.size();
-			for(i = 0; i < size; ++i) 
-				if(!label.compare(labels[i].first))
-					break;
-
-			if(i == size)	// If label has not been initialized before, add it to labels
-				labels.push_back(pair<string,INSTRSIZE>(label,address));
-			else
-				cout << "Warning: label " << label <<
-					" has been declared more than once. The first instance will be used.\n";
 		}
 		else {	// Token is neither label nor comment. If it's an instruction, increase the address and continue.
 			// Replace other separators with white space
