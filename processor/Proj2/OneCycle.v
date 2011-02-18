@@ -133,8 +133,13 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
   reg [9:0] LedROut;
   assign ledred=LedROut;
   always @(posedge clk) begin
-    // Insert code to load HexOut, LedROut, and LedGOut from dmemin when appropriate
-    ...
+	//TEST Insert code to load HexOut, LedROut, and LedGOut from dmemin when appropriate
+	if(dmemaddr == 16'hfff8)
+		assign HexOut=dmemin;
+	if(dmemaddr == 16'hfffa)
+		assign LedROut=dmemin;
+	if(dmemaddr == 16'hfffc)
+		assign LedGOut=dmemin;
   end
   wire [(DBITS-1):0] MemVal;
   // Connect memory array to other signals
