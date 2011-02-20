@@ -13,11 +13,14 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	// Warning: The file you submit for Project 1 must use a PLL with a 50% duty cycle
 	wire clk,lock;
 	OneCycPll oneCycPll(.inclk0(CLOCK_50),.c0(clk),.locked(lock));
+	//wire clk = KEY[0];
+	//wire lock = 1'b1;
 	wire [3:0] keys=KEY;
 	wire [9:0] switches=SW;
+	//assign LEDR = opcode1;
 
 	assign {HEX0,HEX1,HEX2,HEX3,LEDR,LEDG}={digit0,digit1,digit2,digit3,ledred,ledgreen};
-
+	//assign {HEX0,HEX1,HEX2,HEX3,LEDG}={digit0,digit1,digit2,digit3,ledgreen};
 	parameter DBITS=16;
 
 	reg [(DBITS-1):0] PC=16'h200,nextPC;
@@ -133,13 +136,13 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
   reg [9:0] LedROut;
   assign ledred=LedROut;
   always @(posedge clk) begin
-	//TEST Insert code to load HexOut, LedROut, and LedGOut from dmemin when appropriate
-	if(dmemaddr == 16'hfff8)
-		assign HexOut=dmemin;
-	if(dmemaddr == 16'hfffa)
-		assign LedROut=dmemin;
-	if(dmemaddr == 16'hfffc)
-		assign LedGOut=dmemin;
+    // Insert code to store HexOut, LedROut, and LedGOut from dmemin when appropriate
+	 if(dmemaddr == 16'hfff8)
+		HexOut <= dmemin;
+	 else if(dmemaddr == 16'hfffa)
+	   LedROut <= dmemin;
+	 else if(dmemaddr == 16'hfffc)
+	   LedGOut <= dmemin;
   end
   wire [(DBITS-1):0] MemVal;
   // Connect memory array to other signals
@@ -150,7 +153,9 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
     .DIN(dmemin),
     .WE(wrmem&&MemEnable),.CLK(clk));
   // Insert code to output MemVal, keys, or switches according to the dmemaddr
-  wire [(DBITS-1):0] dmemout=...;
+  wire [(DBITS-1):0] dmemout=MemEnable?MemVal:
+		(dmemaddr==16'hfff0)?{KEY[3],KEY[2],KEY[1],1'b1}:
+		(dmemaddr==16'hfff2)?SW:16'hDEAD;
 
 	// This is the entire decoding logic. But it generates some values (aluin2, wregval, nextPC) in addition to control signals
 	// You may want to have these values selected in the datapath, and have the control logic just create selection signals
@@ -163,23 +168,23 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	  { aluin2,alufunc,wregval,wregno,wrreg}=
 	  {regout2,opcode2, aluout,  rdst,1'b1 };
 	OP1_ADDI:
-	  // Insert code to do OP1_ADDI
-	  ...
+	  {aluin2,alufunc,wregval,wregno,wrreg} =
+	  {dimm,ALU_ADD,aluout,rsrc2,1'b1};
 	OP1_BEQ:
 	  { aluin2,alufunc,nextPC}=
 	  {regout2,ALU_XOR,(aluoutz?pctarg:pcplus)};
    OP1_BNE:
-	  // Insert code to do OP1_BNE
-	  ...
+	  { aluin2,alufunc,nextPC}=
+	  {regout2,ALU_XOR,(aluoutz?pcplus:pctarg)};
 	OP1_LW:
-	  // Insert code to do OP1_LW
-	  ...
+	  {aluin2,alufunc,wregval,wregno,wrreg} =
+	  {dimm,ALU_ADD,dmemout,rsrc2,1'b1};
 	OP1_SW:
-	  // Insert code to do OP1_SW
-	  ...
+	  {aluin2,alufunc,wrmem} =
+	  {dimm,ALU_ADD,1'b1};
    OP1_JMP:
-	  // Insert code to generate correct values for JRL
-	  {wregval,wregno,wrreg,nextPC}=...;
+	  {wregval,wregno,wrreg,nextPC}=
+	  {pcplus,rdst,1'b1,regout1};
 	default:
 	  ;
 	endcase
