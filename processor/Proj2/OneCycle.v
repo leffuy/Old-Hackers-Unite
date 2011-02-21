@@ -157,7 +157,7 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
   reg wrmem;
   reg [(DBITS-1):0] dmemaddr;
   // Warning: The file you submit for Project 1 must not use negedge for anything
-  always @(negedge clk)
+  always @(posedge clk)
     dmemaddr<=aluout;
   reg [(DBITS-1):0] dmemin;
   always @(posedge clk)
@@ -180,6 +180,10 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	 else if(dmemaddr == 16'hfffc)
 	   LedGOut <= dmemin;
   end
+  
+  reg bwrmem;
+  always @(posedge clk)
+	bwrmem <= wrmem;
   wire [(DBITS-1):0] MemVal;
   // Connect memory array to other signals
   wire MemEnable=(dmemaddr[(DBITS-1):13]==3'b0);
@@ -187,7 +191,7 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
     .ADDR1(dmemaddr[12:1]),.DOUT1(MemVal),
     .ADDR2(imemaddr[12:1]),.DOUT2(imemout),
     .DIN(dmemin),
-    .WE(wrmem&&MemEnable),.CLK(clk));
+    .WE(bwrmem&&MemEnable),.CLK(clk));
   // Insert code to output MemVal, keys, or switches according to the dmemaddr
   wire [(DBITS-1):0] dmemout=MemEnable?MemVal:
 		//(dmemaddr==16'hfff0)?{KEY[3],KEY[2],KEY[1],1'b1}:
@@ -197,7 +201,7 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	// This is the entire decoding logic. But it generates some values (aluin2, wregval, nextPC) in addition to control signals
 	// You may want to have these values selected in the datapath, and have the control logic just create selection signals
 	// E.g. for aluin2, you could have "assign aluin=regaluin2?regout2:dimm;" in the datapath, then set the "regaluin2" control signal here
-	always @(opcode1 or opcode2 or rdst or rsrc2 or pcplus or pctarg or regout1 or regout2 or aluout or aluoutz or dmemout or dimm or dimm) begin
+	always @(opcode1 or opcode2 or rdst or rsrc2 or pcplus or pctarg or regout1 or regout2 or aluout or aluoutz or dmemout or dimm or dimm or brsrc1 or brsrc2 or brdst or regxor) begin
     {         aluin2,  alufunc,wrmem,        wregval,   wregno,wrreg,nextPC}=
     {{(DBITS){1'bX}},{4{1'bX}}, 1'b0,{(DBITS){1'bX}},{3{1'bX}},1'b0 ,pcplus};
 	case(opcode1)
