@@ -35,6 +35,9 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 
 	wire [(DBITS-1):0] inst=imemout;
 	wire [2:0] opcode1=inst[15:13];
+	reg [2:0] bopcode1;
+	always @(posedge clk)
+		bopcode1 <= opcode1;
 	// Provide nice names for opcode1 values
 	parameter
 		OP1_ALU =3'b000,
@@ -71,6 +74,10 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	 
 
 	wire [2:0] rsrc1  =inst[12:10];
+	reg [2:0] brsrc1;
+	always @(posedge clk)
+		brsrc1 <= rsrc1;
+	
 	wire [2:0] rsrc2  =inst[ 9: 7];
 	wire [2:0] rdst   =inst[ 6: 4];
 	wire [3:0] opcode2=inst[ 3: 0];
@@ -83,7 +90,7 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 
 	// The rregno1 and rregno2 always come from rsrc1 and rsrc2 field in the instruction word
 	wire [2:0] rregno1=rsrc1, rregno2=rsrc2;
-	wire [(DBITS-1):0] regout1,regout2;
+	wire [(DBITS-1):0] regout1,regout2,regxor = !(regout1^regout2);
 	// These three are optimized-out "reg" (control logic uses an always-block)
 	// But wregno may come from rsrc2 or rdst fields (decided by control logic)
 	reg [2:0] wregno;
@@ -97,9 +104,9 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 
 	// The ALU unit
 	// ALU input 1 always comes from the register file
-	wire [(DBITS-1):0] aluin1=regout1;
+	reg [(DBITS-1):0] aluin1;
 	// Decided by control logic (regout2 or immediate)
-	reg [(DBITS-1):0]  aluin2;
+	reg [(DBITS-1):0]  aluin2, aluin22;
 	wire [(DBITS-1):0] aluout;
 	ALU #(
 		.BITS(DBITS),
@@ -114,9 +121,34 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 		.CMD_NAND(ALU_NAND),
 		.CMD_NOR( ALU_NOR),
 		.CMD_NXOR(ALU_NXOR)
-  ) alu(.A(aluin1),.B(aluin2),.CTL(alufunc),.OUT(aluout));
+  ) alu(.A(aluin1),.B(aluin22),.CTL(alufunc2),.OUT(aluout));
   // Decided by control logic
-  reg [3:0] alufunc;
+  reg [3:0] alufunc, alufunc2;
+	always @(posedge clk)
+		alufunc2 <= alufunc;
+	always @(posedge clk) begin
+		aluin1 <= regout1;
+		if(bopcode1 == OP1_ALU || bopcode1 == OP1_ADDI) begin
+			if(brsrc1 == rsrc1)
+				aluin1 <= aluout;
+		end
+		if(bopcode1 == OP1_LW) begin
+			if(brsrc1 == rsrc1)
+				aluin1 <= dmemout;
+		end
+	end
+	always @(posedge clk) begin
+		aluin22 <= aluin2;
+		if(bopcode1 == OP1_ALU || bopcode1 == OP1_ADDI) begin
+			if(brsrc1 == rsrc2)
+				aluin22 <= aluout;
+		end
+		if(bopcode1 == OP1_LW) begin
+			if(brsrc1 == rsrc2)
+				aluin22 <= dmemout;
+		end
+	end
+	
   // Used by control logic for BEQ and BNE (is ALU output zero?)
   wire aluoutz=!aluout;
   
@@ -125,7 +157,9 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
   // Warning: The file you submit for Project 1 must not use negedge for anything
   always @(negedge clk)
     dmemaddr<=aluout;
-  wire [(DBITS-1):0] dmemin=regout2;
+  reg [(DBITS-1):0] dmemin;
+  always @(posedge clk)
+	dmemin <= regout2;
   reg [(DBITS-1):0] HexOut;
   SevenSeg ss3(.OUT(digit3),.IN(HexOut[15:12]));
   SevenSeg ss2(.OUT(digit2),.IN(HexOut[11:8]));
@@ -154,7 +188,8 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
     .WE(wrmem&&MemEnable),.CLK(clk));
   // Insert code to output MemVal, keys, or switches according to the dmemaddr
   wire [(DBITS-1):0] dmemout=MemEnable?MemVal:
-		(dmemaddr==16'hfff0)?{KEY[3],KEY[2],KEY[1],1'b1}:
+		//(dmemaddr==16'hfff0)?{KEY[3],KEY[2],KEY[1],1'b1}:
+		(dmemaddr==16'hfff0)?KEY:
 		(dmemaddr==16'hfff2)?SW:16'hDEAD;
 
 	// This is the entire decoding logic. But it generates some values (aluin2, wregval, nextPC) in addition to control signals
@@ -171,11 +206,11 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	  {aluin2,alufunc,wregval,wregno,wrreg} =
 	  {dimm,ALU_ADD,aluout,rsrc2,1'b1};
 	OP1_BEQ:
-	  { aluin2,alufunc,nextPC}=
-	  {regout2,ALU_XOR,(aluoutz?pctarg:pcplus)};
+	  { nextPC}=
+	  {(regxor?pctarg:pcplus)};
    OP1_BNE:
-	  { aluin2,alufunc,nextPC}=
-	  {regout2,ALU_XOR,(aluoutz?pcplus:pctarg)};
+	  { nextPC}=
+	  {(regxor?pcplus:pctarg)};
 	OP1_LW:
 	  {aluin2,alufunc,wregval,wregno,wrreg} =
 	  {dimm,ALU_ADD,dmemout,rsrc2,1'b1};
