@@ -74,12 +74,14 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	 
 
 	wire [2:0] rsrc1  =inst[12:10];
-	reg [2:0] brsrc1;
-	always @(posedge clk)
-		brsrc1 <= rsrc1;
-	
 	wire [2:0] rsrc2  =inst[ 9: 7];
 	wire [2:0] rdst   =inst[ 6: 4];
+	reg [2:0] brsrc1, brsrc2, brdst;
+	always @(posedge clk) begin
+		brsrc1 <= rsrc1;
+		brsrc2 <= rsrc2;
+		brdst <= rdst;
+	end
 	wire [3:0] opcode2=inst[ 3: 0];
 	parameter IMMBITS=7;
 	wire [(IMMBITS-1):0] imm=inst[(IMMBITS-1): 0];
@@ -201,10 +203,10 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	case(opcode1)
 	OP1_ALU:
 	  { aluin2,alufunc,wregval,wregno,wrreg}=
-	  {regout2,opcode2, aluout,  rdst,1'b1 };
+	  {regout2,opcode2, aluout,  brdst,1'b1 };
 	OP1_ADDI:
 	  {aluin2,alufunc,wregval,wregno,wrreg} =
-	  {dimm,ALU_ADD,aluout,rsrc2,1'b1};
+	  {dimm,ALU_ADD,aluout,brsrc2,1'b1};
 	OP1_BEQ:
 	  { nextPC}=
 	  {(regxor?pctarg:pcplus)};
@@ -213,7 +215,7 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	  {(regxor?pcplus:pctarg)};
 	OP1_LW:
 	  {aluin2,alufunc,wregval,wregno,wrreg} =
-	  {dimm,ALU_ADD,dmemout,rsrc2,1'b1};
+	  {dimm,ALU_ADD,dmemout,brsrc2,1'b1};
 	OP1_SW:
 	  {aluin2,alufunc,wrmem} =
 	  {dimm,ALU_ADD,1'b1};
