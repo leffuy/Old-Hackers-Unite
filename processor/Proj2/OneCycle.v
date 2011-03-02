@@ -11,10 +11,10 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	wire [9:0] ledred;
 
 	// Warning: The file you submit for Project 1 must use a PLL with a 50% duty cycle
-	wire clk,lock;
-	OneCycPll oneCycPll(.inclk0(CLOCK_50),.c0(clk),.locked(lock));
-	//wire clk = KEY[0];
-	//wire lock = 1'b1;
+	//wire clk,lock;
+	//OneCycPll oneCycPll(.inclk0(CLOCK_50),.c0(clk),.locked(lock));
+	wire clk = KEY[0];
+	wire lock = 1'b1;
 	wire [3:0] keys=KEY;
 	wire [9:0] switches=SW;
 	//assign LEDR = opcode1;
@@ -92,17 +92,21 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 
 	// The rregno1 and rregno2 always come from rsrc1 and rsrc2 field in the instruction word
 	wire [2:0] rregno1=rsrc1, rregno2=rsrc2;
-	wire [(DBITS-1):0] regout1,regout2,regxor = !(regout1^regout2);
+	wire [(DBITS-1):0] regout1,regout2;
+	reg [(DBITS-1):0] regxor;
 	// These three are optimized-out "reg" (control logic uses an always-block)
 	// But wregno may come from rsrc2 or rdst fields (decided by control logic)
 	reg [2:0] wregno;
-	reg wrreg;
+	reg wrreg,bwrreg;
 	reg [(DBITS-1):0] wregval;
 	RegFile #(.DBITS(DBITS),.ABITS(3),.MFILE("Regs.mif")) regFile(
 		.RADDR1(rregno1),.DOUT1(regout1),
 		.RADDR2(rregno2),.DOUT2(regout2),
 		.WADDR(wregno),  .DIN(wregval),
-		.WE(wrreg),.CLK(clk));
+		.WE(bwrreg),.CLK(clk));
+		
+	always @(posedge clk)
+		bwrreg <= wrreg;
 
 	// The ALU unit
 	// ALU input 1 always comes from the register file
@@ -130,23 +134,31 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 		alufunc2 <= alufunc;
 	always @(posedge clk) begin
 		aluin1 <= regout1;
-		if(bopcode1 == OP1_ALU || bopcode1 == OP1_ADDI) begin
-			if(brsrc1 == rsrc1)
+		if(bopcode1 == OP1_ALU) begin
+			if(brdst == rsrc1)
 				aluin1 <= aluout;
 		end
-		if(bopcode1 == OP1_LW) begin
-			if(brsrc1 == rsrc1)
+		else if(bopcode1 == OP1_ADDI) begin
+			if(brsrc2==rsrc1)
+				aluin1 <= aluout;
+		end
+		else if(bopcode1 == OP1_LW) begin
+			if(brsrc2 == rsrc1)
 				aluin1 <= dmemout;
 		end
 	end
 	always @(posedge clk) begin
 		aluin22 <= aluin2;
-		if(bopcode1 == OP1_ALU || bopcode1 == OP1_ADDI) begin
-			if(brsrc1 == rsrc2)
+		if(bopcode1 == OP1_ALU) begin
+			if(brdst == rsrc2)
 				aluin22 <= aluout;
 		end
-		if(bopcode1 == OP1_LW) begin
-			if(brsrc1 == rsrc2)
+		else if(bopcode1 == OP1_ADDI) begin
+			if(brsrc2==rsrc2)
+				aluin22 <= aluout;
+		end
+		else if(bopcode1 == OP1_LW) begin
+			if(brsrc2 == rsrc2)
 				aluin22 <= dmemout;
 		end
 	end
@@ -157,29 +169,84 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
   reg wrmem;
   reg [(DBITS-1):0] dmemaddr;
   // Warning: The file you submit for Project 1 must not use negedge for anything
-  always @(posedge clk)
-    dmemaddr<=aluout;
+  always @(posedge clk) begin
+	 dmemaddr<=regout1+dimm;
+		if(bopcode1 == OP1_ALU) begin
+			if(brdst == rsrc1)
+				dmemaddr <= aluout+dimm;
+		end
+		else if( bopcode1 == OP1_ADDI ) begin
+			if(brsrc2 == rsrc1)
+				dmemaddr <= aluout+dimm;
+		end
+		else if(bopcode1 == OP1_LW) begin
+			if(brsrc2 == rsrc1)
+				dmemaddr <= dmemout+dimm;
+		end
+	end
+	 
   reg [(DBITS-1):0] dmemin;
-  always @(posedge clk)
-	dmemin <= regout2;
+	always @(posedge clk) begin
+		dmemin <= regout2;
+		if(bopcode1 == OP1_ALU) begin
+			if(brdst == rsrc2)
+				dmemin <= aluout;
+		end
+		else if( bopcode1 == OP1_ADDI ) begin
+			if(brsrc2 == rsrc2)
+				dmemin <= aluout;
+		end
+		else if(bopcode1 == OP1_LW) begin
+			if(brsrc2 == rsrc2)
+				dmemin <= dmemout;
+		end
+	end
+
+	
+	always @(regxor or bopcode1 or rsrc1 or rsrc2 or rdst or brsrc1 or brsrc2 or brdst or aluout or regout1 or regout2 or dmemout) begin
+		if(bopcode1 == OP1_ALU) begin
+			if(brdst == rsrc1)
+				regxor = !(aluout^regout2);
+			else if(brdst == rsrc2)
+				regxor = !(regout1^aluout);
+		end
+		else if( bopcode1 == OP1_ADDI ) begin
+			if(brsrc2 == rsrc1)
+				regxor = !(aluout^regout2);
+			else if(brsrc2 == rsrc2)
+				regxor = !(regout1^aluout);
+		end
+		else if(bopcode1 == OP1_LW) begin
+			if(brsrc2 == rsrc1)
+				regxor = !(dmemout^regout2);
+			else if(brsrc2 == rsrc2)
+				regxor = !(regout1^dmemout);
+		end
+	end
+	
   reg [(DBITS-1):0] HexOut;
   SevenSeg ss3(.OUT(digit3),.IN(HexOut[15:12]));
   SevenSeg ss2(.OUT(digit2),.IN(HexOut[11:8]));
   SevenSeg ss1(.OUT(digit1),.IN(HexOut[7:4]));
   SevenSeg ss0(.OUT(digit0),.IN(HexOut[3:0]));
+  always @(posedge clk)
+	HexOut=inst;
+  
   reg [7:0] LedGOut;
   assign ledgreen=LedGOut;
   reg [9:0] LedROut;
   assign ledred=LedROut;
   always @(posedge clk) begin
     // Insert code to store HexOut, LedROut, and LedGOut from dmemin when appropriate
-	 if(dmemaddr == 16'hfff8)
-		HexOut <= dmemin;
-	 else if(dmemaddr == 16'hfffa)
-	   LedROut <= dmemin;
-	 else if(dmemaddr == 16'hfffc)
-	   LedGOut <= dmemin;
+	 //if(dmemaddr == 16'hfff8)
+		//HexOut <= dmemin;
+	 //if(dmemaddr == 16'hfffa)
+	   //LedROut <= dmemin[9:0];
+	 if(dmemaddr == 16'hfffc)
+	   LedGOut <= dmemin[7:0];
   end
+  
+  always @(posedge clk) LedROut = dmemin;
   
   reg bwrmem;
   always @(posedge clk)
@@ -187,21 +254,22 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
   wire [(DBITS-1):0] MemVal;
   // Connect memory array to other signals
   wire MemEnable=(dmemaddr[(DBITS-1):13]==3'b0);
-  MemArray #(.DBITS(DBITS),.ABITS(12),.MFILE("Sorter2.mif")) memArray(
+  MemArray #(.DBITS(DBITS),.ABITS(12),.MFILE("Test2.mif")) memArray(
     .ADDR1(dmemaddr[12:1]),.DOUT1(MemVal),
     .ADDR2(imemaddr[12:1]),.DOUT2(imemout),
     .DIN(dmemin),
     .WE(bwrmem&&MemEnable),.CLK(clk));
   // Insert code to output MemVal, keys, or switches according to the dmemaddr
   wire [(DBITS-1):0] dmemout=MemEnable?MemVal:
-		//(dmemaddr==16'hfff0)?{KEY[3],KEY[2],KEY[1],1'b1}:
-		(dmemaddr==16'hfff0)?KEY:
-		(dmemaddr==16'hfff2)?SW:16'hDEAD;
+		(dmemaddr==16'hfff0)?{KEY[3],KEY[2],KEY[1],1'b1}:
+		//(dmemaddr==16'hfff0)?keys:
+		(dmemaddr==16'hfff2)?switches:16'hDEAD;
 
 	// This is the entire decoding logic. But it generates some values (aluin2, wregval, nextPC) in addition to control signals
 	// You may want to have these values selected in the datapath, and have the control logic just create selection signals
 	// E.g. for aluin2, you could have "assign aluin=regaluin2?regout2:dimm;" in the datapath, then set the "regaluin2" control signal here
-	always @(opcode1 or opcode2 or rdst or rsrc2 or pcplus or pctarg or regout1 or regout2 or aluout or aluoutz or dmemout or dimm or dimm or brsrc1 or brsrc2 or brdst or regxor) begin
+	always @(opcode1 or opcode2 or rdst or rsrc1 or rsrc2 or pcplus or pctarg or regout1 or regout2 or aluout or aluoutz or 
+	dmemout or dimm or dimm or regxor or brsrc1 or brsrc2 or brdst  or bopcode1) begin
     {         aluin2,  alufunc,wrmem,        wregval,   wregno,wrreg,nextPC}=
     {{(DBITS){1'bX}},{4{1'bX}}, 1'b0,{(DBITS){1'bX}},{3{1'bX}},1'b0 ,pcplus};
 	case(opcode1)
@@ -218,14 +286,23 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	  { nextPC}=
 	  {(regxor?pcplus:pctarg)};
 	OP1_LW:
-	  {aluin2,alufunc,wregval,wregno,wrreg} =
-	  {dimm,ALU_ADD,dmemout,brsrc2,1'b1};
+	  {wregval,wregno,wrreg} =
+	  {dmemout,brsrc2,1'b1};
 	OP1_SW:
-	  {aluin2,alufunc,wrmem} =
-	  {dimm,ALU_ADD,1'b1};
-   OP1_JMP:
+	  {wrmem} =
+	  {1'b1};
+   OP1_JMP: begin
 	  {wregval,wregno,wrreg,nextPC}=
-	  {pcplus,rdst,1'b1,regout1};
+	  {pcplus,rdst,1'b1};
+		if(bopcode1 == OP1_ALU && brdst == rsrc1)
+			nextPC=aluout;
+		else if(bopcode1 == OP1_ADDI && brsrc2==rsrc1)
+			nextPC=aluout;
+		else if(bopcode1 == OP1_LW && brsrc2 == rsrc1)
+			nextPC=dmemout;
+		else 
+			nextPC=regout1;
+	end
 	default:
 	  ;
 	endcase
