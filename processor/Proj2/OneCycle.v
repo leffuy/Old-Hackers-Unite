@@ -35,9 +35,12 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 
 	wire [(DBITS-1):0] inst=imemout;
 	wire [2:0] opcode1=inst[15:13];
-	reg [2:0] bopcode1;
+	
+	reg forward;
+	wire hack = (opcode1 == OP1_SW);
 	always @(posedge clk)
-		bopcode1 <= opcode1;
+		forward <= (opcode1 == OP1_LW);
+
 	// Provide nice names for opcode1 values
 	parameter
 		OP1_ALU =3'b000,
@@ -76,43 +79,46 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	wire [2:0] rsrc1  =inst[12:10];
 	wire [2:0] rsrc2  =inst[ 9: 7];
 	wire [2:0] rdst   =inst[ 6: 4];
-	reg [2:0] brsrc1, brsrc2, brdst;
-	always @(posedge clk) begin
-		brsrc1 <= rsrc1;
+
+	reg [2:0] brsrc2;
+	always @(posedge clk)
 		brsrc2 <= rsrc2;
-		brdst <= rdst;
-	end
+
 	wire [3:0] opcode2=inst[ 3: 0];
 	parameter IMMBITS=7;
 	wire [(IMMBITS-1):0] imm=inst[(IMMBITS-1): 0];
 	wire [(DBITS-1):0]   dimm={{(DBITS-IMMBITS){imm[IMMBITS-1]}},imm};
 	wire [(DBITS-1):0]   bimm={{(DBITS-IMMBITS-1){imm[IMMBITS-1]}},imm,1'b0};
 
-	wire [(DBITS-1):0] pctarg=pcplus+bimm;
+	wire [(DBITS-1):0] pctarg= pcplus+bimm;
 
 	// The rregno1 and rregno2 always come from rsrc1 and rsrc2 field in the instruction word
 	wire [2:0] rregno1=rsrc1, rregno2=rsrc2;
 	wire [(DBITS-1):0] regout1,regout2;
-	reg [(DBITS-1):0] regxor;
 	// These three are optimized-out "reg" (control logic uses an always-block)
 	// But wregno may come from rsrc2 or rdst fields (decided by control logic)
 	reg [2:0] wregno;
 	reg wrreg,bwrreg;
-	reg [(DBITS-1):0] wregval;
+	reg [(DBITS-1):0] wregval, wregno, bwregval, bwregno;
 	RegFile #(.DBITS(DBITS),.ABITS(3),.MFILE("Regs.mif")) regFile(
 		.RADDR1(rregno1),.DOUT1(regout1),
 		.RADDR2(rregno2),.DOUT2(regout2),
-		.WADDR(wregno),  .DIN(wregval),
+		.WADDR(bwregno),.DIN(bwregval),
 		.WE(bwrreg),.CLK(clk));
 		
-	always @(posedge clk)
+	always @(posedge clk) begin
 		bwrreg <= wrreg;
-
+		bwregval <= wregval;
+		bwregno <= bwregno;
+	end
+		
+	
 	// The ALU unit
 	// ALU input 1 always comes from the register file
-	reg [(DBITS-1):0] aluin1;
+	wire [(DBITS-1):0] aluin1 = (forward && (brsrc2 == rsrc1))?dmemout:regout1;
 	// Decided by control logic (regout2 or immediate)
-	reg [(DBITS-1):0]  aluin2, aluin22;
+	reg [(DBITS-1):0]  aluin2;
+	wire [(DBITS-1):0] aluin22 = (forward && !hack && (brsrc2 == rsrc2))?dmemout:aluin2;
 	wire [(DBITS-1):0] aluout;
 	ALU #(
 		.BITS(DBITS),
@@ -127,100 +133,25 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 		.CMD_NAND(ALU_NAND),
 		.CMD_NOR( ALU_NOR),
 		.CMD_NXOR(ALU_NXOR)
-  ) alu(.A(aluin1),.B(aluin22),.CTL(alufunc2),.OUT(aluout));
+  ) alu(.A(aluin1),.B(aluin22),.CTL(alufunc),.OUT(aluout));
   // Decided by control logic
-  reg [3:0] alufunc, alufunc2;
-	always @(posedge clk)
-		alufunc2 <= alufunc;
-	always @(posedge clk) begin
-		aluin1 <= regout1;
-		if(bopcode1 == OP1_ALU) begin
-			if(brdst == rsrc1)
-				aluin1 <= aluout;
-		end
-		else if(bopcode1 == OP1_ADDI) begin
-			if(brsrc2==rsrc1)
-				aluin1 <= aluout;
-		end
-		else if(bopcode1 == OP1_LW) begin
-			if(brsrc2 == rsrc1)
-				aluin1 <= dmemout;
-		end
-	end
-	always @(posedge clk) begin
-		aluin22 <= aluin2;
-		if(bopcode1 == OP1_ALU) begin
-			if(brdst == rsrc2)
-				aluin22 <= aluout;
-		end
-		else if(bopcode1 == OP1_ADDI) begin
-			if(brsrc2==rsrc2)
-				aluin22 <= aluout;
-		end
-		else if(bopcode1 == OP1_LW) begin
-			if(brsrc2 == rsrc2)
-				aluin22 <= dmemout;
-		end
-	end
-	
+  reg [3:0] alufunc;
+
   // Used by control logic for BEQ and BNE (is ALU output zero?)
   wire aluoutz=!aluout;
-  
+
   reg wrmem;
   reg [(DBITS-1):0] dmemaddr;
   // Warning: The file you submit for Project 1 must not use negedge for anything
-  always @(posedge clk) begin
-	 dmemaddr<=regout1+dimm;
-		if(bopcode1 == OP1_ALU) begin
-			if(brdst == rsrc1)
-				dmemaddr <= aluout+dimm;
-		end
-		else if( bopcode1 == OP1_ADDI ) begin
-			if(brsrc2 == rsrc1)
-				dmemaddr <= aluout+dimm;
-		end
-		else if(bopcode1 == OP1_LW) begin
-			if(brsrc2 == rsrc1)
-				dmemaddr <= dmemout+dimm;
-		end
-	end
+  always @(posedge clk)
+	 dmemaddr<=aluout;
 	 
   reg [(DBITS-1):0] dmemin;
 	always @(posedge clk) begin
 		dmemin <= regout2;
-		if(bopcode1 == OP1_ALU) begin
-			if(brdst == rsrc2)
-				dmemin <= aluout;
-		end
-		else if( bopcode1 == OP1_ADDI ) begin
-			if(brsrc2 == rsrc2)
-				dmemin <= aluout;
-		end
-		else if(bopcode1 == OP1_LW) begin
+		if(forward) begin
 			if(brsrc2 == rsrc2)
 				dmemin <= dmemout;
-		end
-	end
-
-	
-	always @(regxor or bopcode1 or rsrc1 or rsrc2 or rdst or brsrc1 or brsrc2 or brdst or aluout or regout1 or regout2 or dmemout) begin
-		if(bopcode1 == OP1_ALU) begin
-			if(brdst == rsrc1)
-				regxor = !(aluout^regout2);
-			else if(brdst == rsrc2)
-				regxor = !(regout1^aluout);
-		end
-		else if( bopcode1 == OP1_ADDI ) begin
-			if(brsrc2 == rsrc1)
-				regxor = !(aluout^regout2);
-			else if(brsrc2 == rsrc2)
-				regxor = !(regout1^aluout);
-		end
-		else if(bopcode1 == OP1_LW) begin
-			if(brsrc2 == rsrc1)
-				regxor = !(dmemout^regout2);
-			else if(brsrc2 == rsrc2)
-				regxor = !(regout1^dmemout);
 		end
 	end
 	
@@ -246,7 +177,7 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	   LedGOut <= dmemin[7:0];
   end
   
-  always @(posedge clk) LedROut = dmemin;
+  always @(posedge clk) LedROut = aluout;
   
   reg bwrmem;
   always @(posedge clk)
@@ -269,36 +200,32 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	// You may want to have these values selected in the datapath, and have the control logic just create selection signals
 	// E.g. for aluin2, you could have "assign aluin=regaluin2?regout2:dimm;" in the datapath, then set the "regaluin2" control signal here
 	always @(opcode1 or opcode2 or rdst or rsrc1 or rsrc2 or pcplus or pctarg or regout1 or regout2 or aluout or aluoutz or 
-	dmemout or dimm or dimm or regxor or brsrc1 or brsrc2 or brdst  or bopcode1) begin
+	dmemout or dimm or dimm or brsrc2 or forward) begin
     {         aluin2,  alufunc,wrmem,        wregval,   wregno,wrreg,nextPC}=
     {{(DBITS){1'bX}},{4{1'bX}}, 1'b0,{(DBITS){1'bX}},{3{1'bX}},1'b0 ,pcplus};
 	case(opcode1)
 	OP1_ALU:
-	  { aluin2,alufunc,wregval,wregno,wrreg}=
-	  {regout2,opcode2, aluout,  brdst,1'b1 };
+	  {aluin2,alufunc,wregval,wregno,wrreg}=
+	  {regout2,opcode2, aluout,rdst,1'b1 };
 	OP1_ADDI:
 	  {aluin2,alufunc,wregval,wregno,wrreg} =
-	  {dimm,ALU_ADD,aluout,brsrc2,1'b1};
+	  {dimm,ALU_ADD,aluout,rsrc2,1'b1};
 	OP1_BEQ:
-	  { nextPC}=
-	  {(regxor?pctarg:pcplus)};
+	  {aluin2,alufunc,nextPC}=
+     {regout2,ALU_XOR,(aluoutz?pctarg:pcplus)};
    OP1_BNE:
-	  { nextPC}=
-	  {(regxor?pcplus:pctarg)};
-	OP1_LW:
-	  {wregval,wregno,wrreg} =
-	  {dmemout,brsrc2,1'b1};
-	OP1_SW:
-	  {wrmem} =
-	  {1'b1};
+     {aluin2,alufunc,nextPC}=
+     {regout2,ALU_XOR,(aluoutz?pcplus:pctarg)};
+   OP1_LW:
+     {aluin2,alufunc,wregval,wregno,wrreg} =
+     {dimm,ALU_ADD,dmemout,rsrc2,1'b1};
+   OP1_SW:
+     {aluin2,alufunc,wrmem} =
+     {dimm,ALU_ADD,1'b1};
    OP1_JMP: begin
 	  {wregval,wregno,wrreg,nextPC}=
 	  {pcplus,rdst,1'b1};
-		if(bopcode1 == OP1_ALU && brdst == rsrc1)
-			nextPC=aluout;
-		else if(bopcode1 == OP1_ADDI && brsrc2==rsrc1)
-			nextPC=aluout;
-		else if(bopcode1 == OP1_LW && brsrc2 == rsrc1)
+	  if(forward && (brsrc2 == rsrc1))
 			nextPC=dmemout;
 		else 
 			nextPC=regout1;
