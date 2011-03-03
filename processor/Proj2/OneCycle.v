@@ -165,11 +165,11 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
         aluin22 = bwregval;
     end 
     else if(bopcode1 == OP1_ADDI) begin
-      if(brsrc2==rsrc2)
+      if((brsrc2==rsrc2) && !hack)
         aluin22 = bwregval;
     end 
     else if(forward) begin
-      if(brsrc2 == rsrc2) begin
+      if((brsrc2 == rsrc2) && !hack) begin
         aluin22 = dmemout;
 		end
     end 
@@ -188,7 +188,15 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
   reg [(DBITS-1):0] dmemin;
 	always @(posedge clk) begin
 		dmemin <= regout2;
-		if(forward) begin
+		if(bopcode1 == OP1_ALU) begin
+			if(brdst == rsrc2)
+				dmemin <= bwregval;
+		end
+		else if( bopcode1 == OP1_ADDI ) begin
+			if(brsrc2 == rsrc2)
+				dmemin <= bwregval;
+		end
+		else if(forward) begin
 			if(brsrc2 == rsrc2)
 				dmemin <= dmemout;
 		end
