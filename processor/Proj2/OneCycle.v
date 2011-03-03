@@ -11,10 +11,10 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	wire [9:0] ledred;
 
 	// Warning: The file you submit for Project 1 must use a PLL with a 50% duty cycle
-	//wire clk,lock;
-	//OneCycPll oneCycPll(.inclk0(CLOCK_50),.c0(clk),.locked(lock));
-	wire clk = KEY[0];
-	wire lock = 1'b1;
+	wire clk,lock;
+	OneCycPll oneCycPll(.inclk0(CLOCK_50),.c0(clk),.locked(lock));
+	//wire clk = KEY[0];
+	//wire lock = 1'b1;
 	wire [3:0] keys=KEY;
 	wire [9:0] switches=SW;
 	//assign LEDR = opcode1;
@@ -158,7 +158,7 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
         aluin1 = dmemout;
     end 
   end 
-  always @(aluin2 or aluin22 or bopcode1 or rsrc2 or brdst or brsrc2 or bwregval or dmemout or forward) begin
+  always @(aluin2 or aluin22 or bopcode1 or rsrc2 or brdst or brsrc2 or bwregval or dmemout or forward or hack) begin
     aluin22 = aluin2;
     if(bopcode1 == OP1_ALU) begin
       if(brdst == rsrc2)
@@ -177,7 +177,7 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 
 
   // Used by control logic for BEQ and BNE (is ALU output zero?)
-  wire aluoutz=!aluout;
+  wire aluoutz=(aluout==16'b0);
 
   reg wrmem;
   reg [(DBITS-1):0] dmemaddr;
@@ -207,8 +207,8 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
   SevenSeg ss2(.OUT(digit2),.IN(HexOut[11:8]));
   SevenSeg ss1(.OUT(digit1),.IN(HexOut[7:4]));
   SevenSeg ss0(.OUT(digit0),.IN(HexOut[3:0]));
-  always @(posedge clk)
-	HexOut=inst;
+  /*always @(posedge clk)
+	HexOut=inst;*/
   
   reg [7:0] LedGOut;
   assign ledgreen=LedGOut;
@@ -216,15 +216,18 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
   assign ledred=LedROut;
   always @(posedge clk) begin
     // Insert code to store HexOut, LedROut, and LedGOut from dmemin when appropriate
-	 //if(dmemaddr == 16'hfff8)
-		//HexOut <= dmemin;
-	 //if(dmemaddr == 16'hfffa)
-	   //LedROut <= dmemin[9:0];
-	 if(dmemaddr == 16'hfffc)
+	 if(dmemaddr == 16'hfff8)
+		HexOut <= dmemin;
+	 else if(dmemaddr == 16'hfffa)
+	   LedROut <= dmemin[9:0];
+	 else if(dmemaddr == 16'hfffc)
 	   LedGOut <= dmemin[7:0];
   end
   
-  always @(posedge clk) LedROut = aluout;
+  /*always @(posedge clk) begin
+		LedROut = aluout[8:0];
+		LedROut[9] = aluoutz;
+	end*/
   
   reg bwrmem;
   always @(posedge clk)
@@ -232,15 +235,15 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
   wire [(DBITS-1):0] MemVal;
   // Connect memory array to other signals
   wire MemEnable=(dmemaddr[(DBITS-1):13]==3'b0);
-  MemArray #(.DBITS(DBITS),.ABITS(12),.MFILE("Test2.mif")) memArray(
+  MemArray #(.DBITS(DBITS),.ABITS(12),.MFILE("Sorter2.mif")) memArray(
     .ADDR1(dmemaddr[12:1]),.DOUT1(MemVal),
     .ADDR2(imemaddr[12:1]),.DOUT2(imemout),
     .DIN(dmemin),
     .WE(bwrmem&&MemEnable),.CLK(clk));
   // Insert code to output MemVal, keys, or switches according to the dmemaddr
   wire [(DBITS-1):0] dmemout=MemEnable?MemVal:
-		(dmemaddr==16'hfff0)?{KEY[3],KEY[2],KEY[1],1'b1}:
-		//(dmemaddr==16'hfff0)?keys:
+		//(dmemaddr==16'hfff0)?{KEY[3],KEY[2],KEY[1],1'b1}:
+		(dmemaddr==16'hfff0)?keys:
 		(dmemaddr==16'hfff2)?switches:16'hDEAD;
 
 	// This is the entire decoding logic. But it generates some values (aluin2, wregval, nextPC) in addition to control signals
@@ -270,17 +273,16 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
      {aluin2,alufunc,wrmem} =
      {dimm,ALU_ADD,1'b1};
    OP1_JMP: begin
-	  {wregval,wregno,wrreg,nextPC}=
+	  {wregval,wregno,wrreg}=
 	  {pcplus,rdst,1'b1};
-		if(bopcode1 == OP1_ALU && brdst == rsrc1)
+		if((bopcode1 == OP1_ALU) && (brdst == rsrc1))
 			nextPC=aluout;
-		else if(bopcode1 == OP1_ADDI && brsrc2==rsrc1)
+		else if((bopcode1 == OP1_ADDI) && (brsrc2==rsrc1))
 			nextPC=aluout;
-		else if(forward && brsrc2 == rsrc1)
+		else if(forward && (brsrc2 == rsrc1))
 			nextPC=dmemout;
 		else
 			nextPC=regout1;
-	
 	end
 	default:
 	  ;
