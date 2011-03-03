@@ -38,6 +38,12 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	
 	reg forward;
 	wire hack = (opcode1 == OP1_SW);
+	wire bopalu = (bopcode1 == OP1_ALU);
+	wire bopaddi = (bopcode1 == OP1_ADDI);
+	wire br2eq2 = (brsrc2 == rsrc2);
+	wire br2eq1 = (brsrc2 == rsrc1);
+	wire brdeq2 = (brdst == rsrc2);
+	wire brdeq1 = (brdst == rsrc1);
 	always @(posedge clk)
 		forward <= (opcode1 == OP1_LW);
 
@@ -139,33 +145,33 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
   reg [3:0] alufunc;
   
   // ALU forwarding
-	always @(aluin1 or regout1 or bopcode1 or rsrc1 or brdst or brsrc2 or bwregval or dmemout or forward) begin
+	always @(aluin1 or regout1 or bopalu or bopaddi or brdeq1 or br2eq1 or bwregval or dmemout or forward) begin
     aluin1 = regout1;
-    if(bopcode1 == OP1_ALU) begin
-      if(brdst == rsrc1)
+    if(bopalu) begin
+      if(brdeq1)
         aluin1 = bwregval;
     end 
-    else if(bopcode1 == OP1_ADDI) begin
-      if(brsrc2==rsrc1)
+    else if(bopaddi) begin
+      if(br2eq1)
         aluin1 = bwregval;
     end 
     else if(forward) begin
-      if(brsrc2 == rsrc1)
+      if(br2eq1)
         aluin1 = dmemout;
     end 
   end 
-  always @(aluin2 or aluin22 or bopcode1 or rsrc2 or brdst or brsrc2 or bwregval or dmemout or forward or hack) begin
+  always @(aluin2 or aluin22 or bopalu or bopaddi or brdeq2 or br2eq2 or bwregval or dmemout or forward or hack) begin
     aluin22 = aluin2;
-    if(bopcode1 == OP1_ALU) begin
-      if(brdst == rsrc2)
+    if(bopalu) begin
+      if(brdeq2)
         aluin22 = bwregval;
     end 
-    else if(bopcode1 == OP1_ADDI) begin
-      if((brsrc2==rsrc2) && !hack)
+    else if(bopaddi) begin
+      if(br2eq2 && !hack)
         aluin22 = bwregval;
     end 
     else if(forward) begin
-      if((brsrc2 == rsrc2) && !hack) begin
+      if(br2eq2 && !hack) begin
         aluin22 = dmemout;
 		end
     end 
@@ -184,16 +190,16 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
   reg [(DBITS-1):0] dmemin;
 	always @(posedge clk) begin
 		dmemin <= regout2;
-		if(bopcode1 == OP1_ALU) begin
-			if(brdst == rsrc2)
+		if(bopalu) begin
+			if(brdeq2)
 				dmemin <= bwregval;
 		end
-		else if( bopcode1 == OP1_ADDI ) begin
-			if(brsrc2 == rsrc2)
+		else if(bopaddi) begin
+			if(br2eq2)
 				dmemin <= bwregval;
 		end
 		else if(forward) begin
-			if(brsrc2 == rsrc2)
+			if(br2eq2)
 				dmemin <= dmemout;
 		end
 	end
@@ -224,7 +230,7 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
   wire [(DBITS-1):0] MemVal;
   // Connect memory array to other signals
   wire MemEnable=(dmemaddr[(DBITS-1):13]==3'b0);
-  MemArray #(.DBITS(DBITS),.ABITS(12),.MFILE("Test2.mif")) memArray(
+  MemArray #(.DBITS(DBITS),.ABITS(12),.MFILE("Sorter2.mif")) memArray(
     .ADDR1(dmemaddr[12:1]),.DOUT1(MemVal),
     .ADDR2(imemaddr[12:1]),.DOUT2(imemout),
     .DIN(dmemin),
@@ -237,8 +243,8 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	// This is the entire decoding logic. But it generates some values (aluin2, wregval, nextPC) in addition to control signals
 	// You may want to have these values selected in the datapath, and have the control logic just create selection signals
 	// E.g. for aluin2, you could have "assign aluin=regaluin2?regout2:dimm;" in the datapath, then set the "regaluin2" control signal here
-	always @(opcode1 or opcode2 or rdst or rsrc1 or rsrc2 or pcplus or pctarg or regout1 or regout2 or aluout or aluoutz or 
-	dmemout or dimm or dimm or brsrc2 or brdst or forward or bopcode1) begin
+	always @(opcode1 or opcode2 or rdst or rsrc1 or rsrc2 or pcplus or pctarg or regout2 or aluout or aluoutz or regout1 or
+	dmemout or dimm or dimm or brsrc2 or brdst or forward or bopaddi or bopalu) begin
     {         aluin2,  alufunc,wrmem,        wregval,   wregno,wrreg,nextPC}=
     {{(DBITS){1'bX}},{4{1'bX}}, 1'b0,{(DBITS){1'bX}},{3{1'bX}},1'b0 ,pcplus};
 	case(opcode1)
@@ -263,9 +269,9 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
    OP1_JMP: begin
 	  {wregval,wregno,wrreg}=
 	  {pcplus,rdst,1'b1};
-		if((bopcode1 == OP1_ALU) && (brdst == rsrc1))
+		if(bopalu && (brdst == rsrc1))
 			nextPC=aluout;
-		else if((bopcode1 == OP1_ADDI) && (brsrc2==rsrc1))
+		else if(bopaddi && (brsrc2==rsrc1))
 			nextPC=aluout;
 		else if(forward && (brsrc2 == rsrc1))
 			nextPC=dmemout;
