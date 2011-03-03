@@ -11,17 +11,12 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	wire [9:0] ledred;
 
 	// Warning: The file you submit for Project 1 must use a PLL with a 50% duty cycle
-	//wire clk,lock;
-	//OneCycPll oneCycPll(.inclk0(CLOCK_50),.c0(clk),.locked(lock));
-	//wire clk = KEY[0];
-	wire clk = CLOCK_50;
-	wire lock = 1'b1;
+	wire clk,lock;
+	OneCycPll oneCycPll(.inclk0(CLOCK_50),.c0(clk),.locked(lock));
 	wire [3:0] keys=KEY;
 	wire [9:0] switches=SW;
-	//assign LEDR = opcode1;
 
 	assign {HEX0,HEX1,HEX2,HEX3,LEDR,LEDG}={digit0,digit1,digit2,digit3,ledred,ledgreen};
-	//assign {HEX0,HEX1,HEX2,HEX3,LEDG}={digit0,digit1,digit2,digit3,ledgreen};
 	parameter DBITS=16;
 
 	reg [(DBITS-1):0] PC=16'h200,nextPC;
@@ -208,8 +203,6 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
   SevenSeg ss2(.OUT(digit2),.IN(HexOut[11:8]));
   SevenSeg ss1(.OUT(digit1),.IN(HexOut[7:4]));
   SevenSeg ss0(.OUT(digit0),.IN(HexOut[3:0]));
-  /*always @(posedge clk)
-	HexOut=inst;*/
   
   reg [7:0] LedGOut;
   assign ledgreen=LedGOut;
@@ -219,16 +212,11 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
     // Insert code to store HexOut, LedROut, and LedGOut from dmemin when appropriate
 	 if(dmemaddr == 16'hfff8)
 		HexOut <= dmemin;
-	 else if(dmemaddr == 16'hfffa)
+	 if(dmemaddr == 16'hfffa)
 	   LedROut <= dmemin[9:0];
-	 else if(dmemaddr == 16'hfffc)
+	 if(dmemaddr == 16'hfffc)
 	   LedGOut <= dmemin[7:0];
   end
-  
-  /*always @(posedge clk) begin
-		LedROut = aluout[8:0];
-		LedROut[9] = aluoutz;
-	end*/
   
   reg bwrmem;
   always @(posedge clk)
@@ -236,14 +224,13 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
   wire [(DBITS-1):0] MemVal;
   // Connect memory array to other signals
   wire MemEnable=(dmemaddr[(DBITS-1):13]==3'b0);
-  MemArray #(.DBITS(DBITS),.ABITS(12),.MFILE("Sorter2.mif")) memArray(
+  MemArray #(.DBITS(DBITS),.ABITS(12),.MFILE("Test2.mif")) memArray(
     .ADDR1(dmemaddr[12:1]),.DOUT1(MemVal),
     .ADDR2(imemaddr[12:1]),.DOUT2(imemout),
     .DIN(dmemin),
     .WE(bwrmem&&MemEnable),.CLK(clk));
   // Insert code to output MemVal, keys, or switches according to the dmemaddr
   wire [(DBITS-1):0] dmemout=MemEnable?MemVal:
-		//(dmemaddr==16'hfff0)?{KEY[3],KEY[2],KEY[1],1'b1}:
 		(dmemaddr==16'hfff0)?keys:
 		(dmemaddr==16'hfff2)?switches:16'hDEAD;
 

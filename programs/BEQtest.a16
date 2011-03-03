@@ -1,12 +1,15 @@
 
 .ORIG 0x200
 XOR GP,GP,GP
-ADDI A1,GP,0xFFFF
-SW A1,-8(GP)
-loop:
-XOR GP,GP,GP
-BEQ A0,A0, exit
-BNE A1,GP, loop
-exit:
-ADDI A0,GP,0xF
+; ADDI A1,GP,1
+; SW A1,-4(GP)
+; loop:
+; BEQ A0,A0, loop
+; BNE A1,GP, loop
+; exit:
+ADDI A1,GP,1
+ADDI A0,GP,2
+repeat:
 SW A0,-4(GP)
+BNE A0, GP, repeat
+BEQ GP,GP,repeat
