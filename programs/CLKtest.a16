@@ -1,0 +1,5 @@
+
+.ORIG 0x200
+XOR GP,GP,GP
+loop:
+	BEQ GP,GP,loop
