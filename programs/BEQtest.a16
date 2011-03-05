@@ -1,15 +1,50 @@
 
+.ORIG 0x100
+gohere:
+.DATA jmptarg
+thenhere:
+.DATA jmpsecond
+
+jmptarg:
+ADDI R2,GP,5
+BEQ R0,R2, broke2
+
+LW R1,thenhere(GP)
+JRL RV,R1
+
+broke2:
+SUBI R0,R0,2
+SW R0,-4(GP)
+bloop2:
+BEQ R0,R0,bloop2
+
+
 .ORIG 0x200
+XOR R0,R0,R0
 XOR GP,GP,GP
-; ADDI A1,GP,1
-; SW A1,-4(GP)
-; loop:
-; BEQ A0,A0, loop
-; BNE A1,GP, loop
-; exit:
-ADDI A1,GP,1
-ADDI A0,GP,2
-repeat:
-SW A0,-4(GP)
-BNE A0, GP, repeat
-BEQ GP,GP,repeat
+ADDI R0,R0,1
+BNE R0,R0,broke
+
+LW R1,gohere(GP)
+JRL RV,R1
+
+broke:
+SUBI R0,R0,2
+SW R0,-4(GP)
+bloop:
+BEQ R0,R0,bloop
+
+jmpsecond:
+XOR R0,R0,R0
+XOR R1,R1,R1
+
+switch:
+ADDI R0,R0,1
+ADDI R1,R1,1
+BEQ R0,R0,switch2
+
+
+switch2:
+ADDI R1,R1,1
+BNE R0,R1,switch
+BEQ R0,R1,broke
