@@ -5,6 +5,7 @@ gohere:
 thenhere:
 .DATA jmpsecond
 
+.ORIG 0x150
 jmptarg:
 ADDI R2,GP,5
 BEQ R0,R2, broke2
