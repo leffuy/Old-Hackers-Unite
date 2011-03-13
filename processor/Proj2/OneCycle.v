@@ -40,6 +40,7 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	wire [(DBITS-1):0] inst=imemout;
 	wire [2:0] opcode1=inst[15:13];
 	reg [2:0] bopcode1;
+
 	always @(posedge clk)
 		bopcode1 <= opcode1;
 
@@ -120,7 +121,6 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 				rregout2 = bwregval;
 		end
 	end
-		
 	
 	// The ALU unit
 	reg [(DBITS-1):0]  aluin1, aluin2, baluout;
@@ -142,7 +142,7 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 		.CMD_NXOR(ALU_NXOR)
   ) alu(.A(aluin1),.B(aluin2),.CTL(alufunc),.OUT(aluout));
 
-	wire branch = (aluin1 ^ aluin2)==16'b0;
+	wire branch = (rregout1 ^ rregout2)==16'b0;
 
 	always @(posedge clk)
 		baluout <= aluout;
@@ -159,7 +159,7 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 
 
   // Used by control logic for BEQ and BNE (is ALU output zero?)
-  wire aluoutz=(aluout==16'b0);
+  //wire aluoutz=(aluout==16'b0);
 
   reg wrmem;
   reg [(DBITS-1):0] dmemaddr, dmemin;
@@ -220,9 +220,9 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	// This is the entire decoding logic. But it generates some values (aluin2, wregval, nextPC) in addition to control signals
 	// You may want to have these values selected in the datapath, and have the control logic just create selection signals
 	// E.g. for aluin2, you could have "assign aluin=regaluin2?regout2:dimm;" in the datapath, then set the "regaluin2" control signal here
-	always @(opcode1 or opcode2 or rdst or rsrc1 or rsrc2 or pcplus or pctarg or rregout1 or rregout2 or aluout or aluoutz or 
+	always @(opcode1 or opcode2 or rdst or rsrc1 or rsrc2 or pcplus or pctarg or rregout1 or rregout2 or aluout or 
 	dmemout or dimm or branch) begin
-    {         aluin2,  alufunc,wrmem, wregno,wrreg,nextPC}=
+    {aluin2,  alufunc,wrmem, wregno,wrreg,nextPC}=
     {{(DBITS){1'bX}},{4{1'bX}}, 1'b0, {3{1'bX}},1'b0 ,pcplus};
 	case(opcode1)
 	OP1_ALU:
@@ -232,11 +232,11 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	  {aluin2,alufunc,wregno,wrreg} =
 	  {dimm,ALU_ADD,rsrc2,1'b1};
 	OP1_BEQ:
-	  {aluin2,nextPC}=
-     {rregout2,(branch?pctarg:pcplus)};
+	  {nextPC}=
+     {(branch?pctarg:pcplus)};
    OP1_BNE:
-     {aluin2,nextPC}=
-     {rregout2,(branch?pcplus:pctarg)};
+     {nextPC}=
+     {(branch?pcplus:pctarg)};
    OP1_LW:
      {aluin2,alufunc,wregno,wrreg} =
      {dimm,ALU_ADD,rsrc2,1'b1};
