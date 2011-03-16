@@ -29,9 +29,11 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 		if(lock)
 			PC <= nextPC;
 	wire [(DBITS-1):0] pcplus=PC+16'd2;
-	reg [(DBITS-1):0] bpcplus;
-	always @(posedge clk)
-		bpcplus <= pcplus;
+	reg [(DBITS-1):0] st2pcplus, bpcplus;
+	always @(posedge clk) begin
+		st2pcplus <= pcplus;
+		bpcplus <= st2pcplus;
+	end
 
 	// These are connected to the memory module
 	wire [(DBITS-1):0] imemaddr=PC;
@@ -39,10 +41,12 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 
 	wire [(DBITS-1):0] inst=imemout;
 	wire [2:0] opcode1=inst[15:13];
-	reg [2:0] bopcode1;
+	reg [2:0] st2opcode1, bopcode1;
 
-	always @(posedge clk)
-		bopcode1 <= opcode1;
+	always @(posedge clk) begin
+		st2opcode1 <= opcode1;
+		bopcode1 <= st2opcode1;
+	end
 
 	// Provide nice names for opcode1 values
 	parameter
@@ -94,11 +98,11 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	// The rregno1 and rregno2 always come from rsrc1 and rsrc2 field in the instruction word
 	wire [2:0] rregno1=rsrc1, rregno2=rsrc2;
 	wire [(DBITS-1):0] regout1, regout2;
-	reg [(DBITS-1):0] rregout1, rregout2;
+	reg [(DBITS-1):0] rregout1, rregout2, st2regout1, st2regout2, jmptarg, brnchcmp;
 	// These three are optimized-out "reg" (control logic uses an always-block)
 	// But wregno may come from rsrc2 or rdst fields (decided by control logic)
-	reg [2:0] wregno, bwregno;
-	reg wrreg,bwrreg;
+	reg [2:0] wregno, st2wregno, bwregno;
+	reg wrreg, st2wrreg, bwrreg;
 	reg [(DBITS-1):0] bwregval;
 	RegFile #(.DBITS(DBITS),.ABITS(3),.MFILE("Regs.mif")) regFile(
 		.RADDR1(rregno1),.DOUT1(regout1),
@@ -107,13 +111,17 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 		.WE(bwrreg),.CLK(clk));
 	
 	always @(posedge clk) begin
-		bwrreg <= wrreg;
-		bwregno <= wregno;
+		st2wrreg <= wrreg;
+		st2wregno <= wregno;
+		bwrreg <= st2wrreg;
+		bwregno <= st2wregno;
+		st2regout1 <= regout1;
+		st2regout2 <= regout2;
 	end
 	
-	always @(rregno1 or rregno2 or rregout1 or rregout2 or regout1 or regout2 or bwrreg or bwregno or bwregval) begin
-		rregout1 = regout1;
-		rregout2 = regout2;
+	always @(rregno1 or rregno2 or rregout1 or rregout2 or regout1 or regout2 or bwrreg or bwregno or bwregval or st2regout1 or st2regout2) begin
+		rregout1 = st2regout1;
+		rregout2 = st2regout2;
 		if(bwrreg) begin
 			if(rregno1 == bwregno)
 				rregout1 = bwregval;
@@ -122,11 +130,33 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 		end
 	end
 	
+	always @(rregno1 or regout1 or regout2 or rregno2 or st2wrreg or st2wregno or st2opcode1 or aluout or jmptarg or brnchcmp or bwrreg or bwregno or bwregval) begin
+		jmptarg = regout1;
+		brnchcmp = regout2;
+		if(st2wrreg && st2opcode1 != OP1_LW) begin
+			if(rregno1 == st2wregno)
+				jmptarg = aluout;
+			if(rregno2 == st2wregno)
+				brnchcmp = aluout;
+		end
+		else if(bwrreg) begin
+			if(rregno1 == bwregno)
+				jmptarg = bwregval;
+			if(rregno2 == bwregno)
+				brnchcmp = bwregval;
+		end
+	end
+	
 	// The ALU unit
 	reg [(DBITS-1):0]  aluin1, aluin2, baluout;
 	wire [(DBITS-1):0] aluout;
 	// Decided by control logic
-   reg [3:0] alufunc;
+   reg [3:0] alufunc, st2alufunc;
+	
+	always @(posedge clk) begin
+		st2alufunc <= alufunc;
+	end
+	
 	ALU #(
 		.BITS(DBITS),
 		.CBITS(4),
@@ -140,9 +170,9 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 		.CMD_NAND(ALU_NAND),
 		.CMD_NOR( ALU_NOR),
 		.CMD_NXOR(ALU_NXOR)
-  ) alu(.A(aluin1),.B(aluin2),.CTL(alufunc),.OUT(aluout));
+  ) alu(.A(aluin1),.B(aluin2),.CTL(st2alufunc),.OUT(aluout));
 
-	wire branch = (rregout1 ^ rregout2)==16'b0;
+	wire branch = (jmptarg ^ brnchcmp)==16'b0;
 
 	always @(posedge clk)
 		baluout <= aluout;
@@ -199,9 +229,11 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 		//LedROut[9] = aluoutz;
 	end
   */
-	reg bwrmem;
-	always @(posedge clk)
-		bwrmem <= wrmem;
+	reg st2wrmem, bwrmem;
+	always @(posedge clk) begin
+		st2wrmem <= wrmem;
+		bwrmem <= st2wrmem;
+	end
 
   wire [(DBITS-1):0] MemVal;
   // Connect memory array to other signals
@@ -221,7 +253,7 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	// You may want to have these values selected in the datapath, and have the control logic just create selection signals
 	// E.g. for aluin2, you could have "assign aluin=regaluin2?regout2:dimm;" in the datapath, then set the "regaluin2" control signal here
 	always @(opcode1 or opcode2 or rdst or rsrc1 or rsrc2 or pcplus or pctarg or rregout1 or rregout2 or aluout or 
-	dmemout or dimm or branch) begin
+	dmemout or dimm or branch or jmptarg) begin
     {aluin2,  alufunc,wrmem, wregno,wrreg,nextPC}=
     {{(DBITS){1'bX}},{4{1'bX}}, 1'b0, {3{1'bX}},1'b0 ,pcplus};
 	case(opcode1)
@@ -245,7 +277,7 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
      {dimm,ALU_ADD,1'b1};
    OP1_JMP: begin
 	  {wregno,wrreg,nextPC}=
-	  {rdst,1'b1,rregout1};
+	  {rdst,1'b1,jmptarg};
 	end
 	default:
 	  ;
