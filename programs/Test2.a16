@@ -1,0 +1,166 @@
+	; This is just a trick to create constants
+
+	.ORIG 1000
+ItNum:	;  Number of sorting iterations
+	
+	.ORIG 0000
+StkAddr:
+.DATA	8192	; Stack begins at the very top of memory
+ArrAddr:
+.DATA   Array   ; Array begins at the end of the code
+ArrBytes:
+.DATA   1024     ; The array has 512 elements (1024 bytes)
+KeyVal:
+.DATA	0xF
+JumpAddr:
+.DATA 	JumpTarg
+RetAddr:
+.DATA	RetVal
+
+	;  Now the actual code
+	.ORIG 0x200
+	XOR	GP,GP,GP	; GP is hold value zero
+
+	ADDI	RV,GP,1
+	SW	RV,-4(GP)	; Put 1 on LEDG (FFFC is -4)
+Press1:
+	LW	A1,-16(GP)
+	SW	A1,-8(GP)
+	ADDI	A0,GP,0x7
+	BNE	A0,A1,Press1
+
+	ADDI	RV,GP,2
+	SW	RV,-4(GP)	; Put 2 on LEDG (FFFC is -4)
+Release1:
+	LW	A1,-16(GP)
+	SW	A1,-8(GP)
+	ADDI	A0,GP,0x7
+	BEQ	A0,A1,Release1
+
+	ADDI	RV,GP,3
+	SW	RV,-4(GP)	; Put 3 on LEDG (FFFC is -4)
+Press2:
+	LW	A1,-16(GP)
+	SW	A1,-8(GP)
+	ADDI	A0,GP,0xF
+	XOR	A0,A0,A1
+	BEQ	A0,GP,Press2
+
+	ADDI	RV,GP,2
+	ADDI	RV,RV,2
+	SW	RV,-4(GP)	; Put 4 on LEDG (FFFC is -4)
+Release2:
+	LW	A1,-16(GP)
+	SW	A1,-8(GP)
+	ADDI	A0,GP,14
+	SUB	A0,A0,A1
+	BEQ	A0,A1,Release2
+
+	ADDI	RV,GP,5
+	SW	RV,-4(GP)	; Put 5 on LEDG (FFFC is -4)
+	; Wait for KEY press
+Press3:
+	LW	A1,-16(GP)
+	SW	A1,-8(GP)
+	ADDI	A0,GP,0xF
+	LT	A0,A1,A0	; bool A0=(KEY < 0xF)
+	BEQ	A0,GP,Press3	; if(A0==false) goto Press3
+
+	ADDI	RV,GP,6
+	SW	RV,-4(GP)	; Put 6 on LEDG (FFFC is -4)
+	; Wait until all KEY released
+Release3:
+	LW	A1,-16(GP)
+	SW	A1,-8(GP)
+	ADDI	A0,GP,0xE
+	LE	A0,A1,A0	; bool A0=(KEY <= 0xE)
+	ADDI	A1,GP,1		; bool A1=true
+	BEQ	A0,A1,Release3	; if(A0==true) goto Release3
+
+	ADDI	RV,GP,7
+	SW	RV,-4(GP)	; Put 7 on LEDG (FFFC is -4)
+	; Wait for KEY press
+Press4:
+	LW	A1,-16(GP)
+	SW	A1,-8(GP)
+	LW	A0,KeyVal(GP)	; Mem[KeyVal] is 0xF 
+	LT	A0,A1,A0	; bool A0=(KEY < 0xF)
+	BEQ	A0,GP,Press4	; if(A0==false) goto Press3
+
+	LW	A1,KeyVal(GP)	; Mem[KeyVal] is 0xF 
+	ADDI	A0,A1,-1	; Reduce to 0xE	
+	SW	A0,KeyVal(GP)	; Mem[KeyVal] is now 0xE 
+
+	ADDI	RV,GP,8
+	SW	RV,-4(GP)	; Put 8 on LEDG (FFFC is -4)
+	; Wait until all KEY released
+Release4:
+	LW	A1,-16(GP)
+	SW	A1,-8(GP)
+	LW	A0,KeyVal(GP)	; Mem[KeyVal] is 0xE	
+	LE	A0,A1,A0	; bool A0=(KEY <= 0xE)
+	ADDI	A1,GP,1		; bool A1=true
+	BEQ	A0,A1,Release4	; if(A0==true) goto Release3
+
+	ADDI	RV,GP,9
+	SW	RV,-4(GP)	; Put 9 on LEDG (FFFC is -4)
+
+	ADDI	RV,GP,10
+	LW	A0,JumpAddr(GP)	; A0 = adress of JumpTarg
+	JRL	A1,(A0)		; Jump to JumpTarg, put addr of RetVal in A1
+RetVal:
+	SW	RV,-8(GP)	; Put 000A on HEX (should never get here)
+	BEQ	R0,R0,Error	; Turn on LEDR
+	BEQ	R0,R0,Error	; Turn on LEDR
+JumpTarg:
+	ADDI	RV,GP,11
+	LW	A0,RetAddr(GP)
+	BEQ	A1,A0,RetValOK
+	SW	RV,-4(GP)	; Put 00001011 on LEDG (should never get here)
+	SW	A1,-8(GP)	; Put saved return address on HEX
+	BEQ	R0,R0,Error	; Turn on LEDR
+RetValOK:
+	
+;Stuck:
+;	BEQ	R0,R0,Stuck
+
+	BEQ	R0,R0,Done
+
+	LW	SP,StkAddr(GP)	; Make SP point to stack
+
+	; Initialize the array
+	LW	A0,ArrAddr(GP)  ; A0 is CurPtr, set to address of array
+	LW	A1,ArrBytes(GP)
+	ADD	A1,A0,A1	; A1 is EndPtr, set to end of array
+	; Array elements will be 50, 53, 56, etc.
+	ADDI	A2,GP,50	; A2 is 50
+Init:
+	SW	A2,0(A0)	; Store value into an element
+	ADDI	A2,A2,3		; Add 3 to the value for next element
+	ADDI	A0,A0,2		; Move to next element
+	SUB	RV,A1,A0	; Compute (EndPtr-CurPtr)
+	LT	RV,GP,RV	; if(0<(EntPtr-CurPtr))
+	BNE	RV,GP,Init	;   goto Init;
+
+; Verify the value in the array
+	LW	A1,ArrAddr(GP)  ; A1 is EndPtr, set to start of array
+	LW	A0,ArrBytes(GP)
+	ADD	A0,A1,A0	; A0 is CurPtr, set to end of array
+	; Array elements should be 50, 53, 56, etc.
+	ADDI	A2,GP,50	; A2 is 50
+Check:
+	BEQ	A0,A1,Done
+	ADDI	A0,A0,-2
+	LW	RV,0(A0)
+	BNE	RV,A2,Error
+	ADDI	A2,A2,3
+	BEQ	R0,R0,Check	; goto Check;
+Done:
+	ADDI	RV,GP,-1	; All-ones in RV
+	SW	RV,-4(GP)	; Turn on LEDG (FFFC is -4)
+	BNE	RV,GP,Done	; if(-1 != 0) goto Done; (loops forever)
+Error:
+	ADDI	RV,GP,-1	; All-ones in RV
+	SW	RV,-6(GP)	; Turn on LEDR (FFFA is -6)
+	BEQ 	GP,GP,Error	; if( 0 == 0) goto Error; (loops forever)
+Array:

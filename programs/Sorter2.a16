@@ -1,0 +1,204 @@
+	; This is just a trick to create constants
+
+	.ORIG 512
+ItNum:	;  Number of sorting iterations
+	
+	.ORIG 0000
+StkAddr:
+.DATA	8192	; Stack begins at the very top of memory
+ArrAddr:
+.DATA   Array   ; Array begins at the end of the code
+ArrBytes:
+.DATA   1024	; The array has 512 elements (1024 bytes)
+SortAscP:
+.DATA	SortAsc	; Address of the SortAsc function
+SortDescP:
+.DATA	SortDesc; Address of the SortDesc function
+ChkAscP:
+.DATA	ChkAsc 	; Address of the ChkAsc function
+ChkDescP:
+.DATA	ChkDesc ; Address of the ChkDesc function
+ItNumV:
+.DATA	ItNum	; Number of iterations for the main loop
+
+	;  Now the actual code
+	.ORIG 0x200
+	XOR	GP,GP,GP	; GP is hold value zero
+	LW	SP,StkAddr(GP)	; Make SP point to stack
+
+	; Initialize the array
+	LW	A0,ArrAddr(GP)  ; A0 is CurPtr, set to start of array
+	LW	A1,ArrBytes(GP)
+	ADD	A1,A0,A1	; A1 is EndPtr, set to end of array
+	; Array elements will be 50, 53, 56, etc.
+	ADDI	A2,GP,50	; A2 is 50
+Init:
+	SW	A2,0(A0)	; Store value into an element
+	ADDI	A2,A2,3		; Add 3 to the value for next element
+	ADDI	A0,A0,2		; Move to next element
+	BNE	A0,A1,Init	; if(CurPtr!=EndPtr) goto Init;
+
+	LW	RA,ChkAscP(GP)	; Address of ChkAsc
+	JRL	RA,(RA)		; Call ChkAsc
+
+	LW	A0,ItNumV(GP)	; Count iterations in A0
+	ADDI	SP,SP,-2	; Allocate a word on the stack
+MainLoop:
+	SW	A0,-8(GP)	; Display loop counter
+	SW	A0,0(SP)	; Save loop counter
+
+	LW	A0,ArrAddr(GP)  ; A0 is CurPtr, set to start of array
+	LW	A1,ArrBytes(GP)
+	ADD	A1,A0,A1	; A1 is EndPtr, set to end of array
+	LW	RA,SortDescP(GP); Address of SortDesc
+	JRL	RA,(RA)		; Call SortDesc
+
+	LW	RA,ChkDescP(GP)	; Address of ChkDesc
+	JRL	RA,(RA)		; Call ChkDesc
+
+	LW	A0,ArrAddr(GP)  ; A0 is CurPtr, set to start of array
+	LW	A1,ArrBytes(GP)
+	ADD	A1,A0,A1	; A1 is EndPtr, set to end of array
+	LW	RA,SortAscP(GP)	; Address of SortAsc
+	JRL	RA,(RA)		; Call SortDesc
+
+	LW	RA,ChkAscP(GP)	; Address of ChkAsc
+	JRL	RA,(RA)		; Call ChkAsc
+
+	LW	A0,0(SP)	; Restore loop counter
+	ADDI	A0,A0,-1
+	BNE	A0,GP,MainLoop
+
+	ADDI	SP,SP,2		; Deallocate the word we allocated
+
+Done:
+	ADDI	RA,GP,-1	; All-ones in RA
+	SW	RA,-4(GP)	; Turn on LEDG (FFFC is -4)
+	BEQ	R0,R0,Done	; Loop forever
+
+ChkAsc:
+	ADDI	SP,SP,-2
+	SW	RA,0(SP)	; Save RA
+	; Verify that array is sorted in ascending order
+	LW	A0,ArrAddr(GP)  ; A0 is CurPtr, set to start of array
+	LW	A1,ArrBytes(GP)
+	ADD	A1,A0,A1	; A1 is EndPtr, set to end of array
+	; Array elements should be 50, 53, 56, etc.
+	ADDI	A2,GP,50	; A2 is 50
+CheckAsc:
+	LW	RA,0(A0)
+	BEQ	RA,A2,ContChkA
+ErrChkA:
+	ADDI	RA,GP,0xA
+	SW	RA,-8(GP)	; Put 000A on HEX
+	ADDI	RA,GP,-1	; All-ones in RA
+	SW	RA,-6(GP)	; Turn on LEDR (FFFA is -6)
+	BEQ 	R0,R0,ErrChkA	; Loop forever
+ContChkA:
+	ADDI	A2,A2,3
+	ADDI	A0,A0,2
+	BNE	A0,A1,CheckAsc
+DoneChkA:
+	LW	RA,0(SP)	; Restore RA
+	ADDI	SP,SP,2
+	JRL	RA,(RA)		; Return (and destroy RA)
+
+ChkDesc:
+	ADDI	SP,SP,-2
+	SW	RA,0(SP)	; Save RA
+	; Verify that array is sorted in descending order
+	LW	A1,ArrAddr(GP)  ; A1 is EndPtr, set to start of array
+	LW	A0,ArrBytes(GP)
+	ADD	A0,A1,A0	; A0 is CurPtr, set to end of array
+	; Array elements should be 50, 53, 56, etc. starting from the end
+	ADDI	A2,GP,50	; A2 is 50
+CheckDesc:
+	BEQ	A0,A1,DoneChkD
+	ADDI	A0,A0,-2
+	LW	RA,0(A0)
+	BEQ	RA,A2,ContChkD
+ErrChkD:
+	ADDI	RA,GP,0xD
+	SW	RA,-8(GP)	; Put 000D on HEX
+	ADDI	RA,GP,-1	; All-ones in RA
+	SW	RA,-6(GP)	; Turn on LEDR (FFFA is -6)
+	BEQ 	R0,R0,ErrChkD	; Loop forever
+ContChkD:
+	ADDI	A2,A2,3
+	BEQ	R0,R0,CheckDesc	; goto CheckDesc;
+DoneChkD:
+	LW	RA,0(SP)	; Restore RA
+	ADDI	SP,SP,2
+	JRL	RA,(RA)		; Return (and destroy RA)
+
+SortAsc:; SortAsc(beg,end)
+        ; Sorts an array that starts at beg and ends at end
+        ; Sorts in ascending order (low to high values)
+	ADDI	SP,SP,-4
+	SW	RA,0(SP)
+	SW	A1,2(SP)
+	; The sorting strategy is immediate-swap selection sort
+	; Outer loop (ptr in A0) goes from start to end
+SALoopI:
+        BEQ     A0,A1,SAEndI
+	; Inner loop (ptr in RA) goes from A0+2 to end
+        ADDI    RA,A0,2
+SALoopJ:  
+        BEQ     RA,A1,SAEndJ
+	; Compare elements pointed to by A0 and RA
+	; Note that we clobber A1 here
+        LW      A1,0(A0)
+        LW      A2,0(RA)
+        LE      A3,A1,A2	; No swap if A1<=A2
+        BNE     A3,GP,SANoSwap
+	SW	A1,0(RA)
+	SW	A2,0(A0)
+SANoSwap:
+	LW	A1,2(SP)	; Reload end ptr into A1
+	ADDI	RA,RA,2		; Advance inner loop ptr
+	BEQ	R0,R0,SALoopJ
+SAEndJ:
+	ADDI	A0,A0,2
+	BEQ	R0,R0,SALoopI
+SAEndI:
+	LW	RA,0(SP)
+	; No need to restore A1
+	ADDI	SP,SP,4
+	JRL	RA,(RA)
+
+SortDesc:; SortDesc(beg,end)
+        ; Sorts an array that starts at beg and ends at end
+        ; Sorts in descending order (high to low values)
+	ADDI	SP,SP,-4
+	SW	RA,0(SP)
+	SW	A1,2(SP)
+	; The sorting strategy is immediate-swap selection sort
+	; Outer loop (ptr in A0) goes from start to end
+SDLoopI:
+        BEQ     A0,A1,SDEndI
+	; Inner loop (ptr in RA) goes from A0+2 to end
+        ADDI    RA,A0,2
+SDLoopJ:  
+        BEQ     RA,A1,SDEndJ
+	; Compare elements pointed to by A0 and RA
+	; Note that we clobber A1 here
+        LW      A1,0(A0)
+        LW      A2,0(RA)
+        LE      A3,A2,A1	; No swap if A1>=A2
+        BNE     A3,GP,SDNoSwap
+	SW	A1,0(RA)
+	SW	A2,0(A0)
+SDNoSwap:
+	LW	A1,2(SP)	; Reload end ptr into A1
+	ADDI	RA,RA,2		; Advance inner loop ptr
+	BEQ	R0,R0,SDLoopJ
+SDEndJ:
+	ADDI	A0,A0,2
+	BEQ	R0,R0,SDLoopI
+SDEndI:
+	LW	RA,0(SP)
+	; No need to restore A1
+	ADDI	SP,SP,4
+	JRL	RA,(RA)
+
+Array:
