@@ -113,12 +113,14 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	always @(posedge clk) begin
 		st2wrreg <= wrreg;
 		st2wregno <= wregno;
-		bwrreg <= st2wrreg;
 		bwregno <= st2wregno;
+		bwrreg <= st2wrreg;
+
 		st2rregno1 <= rregno1;
 		st2rregno2 <= rregno2;
 		st2regout1 <= regout1;
 		st2regout2 <= regout2;
+
 		bregout2 <= rregout2;
 	end
 	
@@ -136,7 +138,7 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	always @(rregno1 or regout1 or regout2 or rregno2 or st2wrreg or st2wregno or st2opcode1 or aluout or jmptarg or brnchcmp or bwrreg or bwregno or bwregval) begin
 		jmptarg = regout1;
 		brnchcmp = regout2;
-		if(st2wrreg && st2opcode1 != OP1_LW) begin
+		if(st2wrreg && (st2opcode1 != OP1_LW)) begin
 			if(rregno1 == st2wregno)
 				jmptarg = aluout;
 			if(rregno2 == st2wregno)
@@ -196,8 +198,8 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
   reg wrmem;
   reg [(DBITS-1):0] dmemaddr, dmemin;
   // Warning: The file you submit for Project 1 must not use negedge for anything
-  always @(dmemaddr or baluout)
-	 dmemaddr = baluout;
+	always @(dmemaddr or baluout)
+		dmemaddr = baluout;
 
 	always @(dmemin or bregout2)
 		dmemin = bregout2;
@@ -227,7 +229,10 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	end
 
 	always @(posedge clk) begin
-		//LedROut = rregout1;
+		//LedROut[2:0] = bwregno;
+		//LedROut[5:3] = st2rregno1;
+		//LedROut[8:6] = st2rregno2;
+	//	LedROut = rregout1;
 		LedROut = aluout;
 		//LedROut = aluout[8:0];
 		//LedROut[9] = branch;
@@ -242,7 +247,7 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
   wire [(DBITS-1):0] MemVal;
   // Connect memory array to other signals
   wire MemEnable=(dmemaddr[(DBITS-1):13]==3'b0);
-  MemArray #(.DBITS(DBITS),.ABITS(12),.MFILE("ALUtest.mif")) memArray(
+  MemArray #(.DBITS(DBITS),.ABITS(12),.MFILE("BEQtest.mif")) memArray(
     .ADDR1(dmemaddr[12:1]),.DOUT1(MemVal),
     .ADDR2(imemaddr[12:1]),.DOUT2(imemout),
     .DIN(dmemin),

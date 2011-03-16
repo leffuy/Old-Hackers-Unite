@@ -1,11 +1,11 @@
 
-.ORIG 0x20
+.ORIG 0x0
 gohere:
 .DATA jmptarg
 thenhere:
 .DATA jmpsecond
 
-.ORIG 0x150
+.ORIG 0x10
 jmptarg:
 ADDI R2,GP,5
 BEQ R0,R2, broke2
@@ -28,6 +28,7 @@ ADDI R0,R0,1
 BNE R0,R0,broke
 
 LW R1,gohere(GP)
+SW R1,-4(GP)
 JRL RV,R1
 
 broke:
