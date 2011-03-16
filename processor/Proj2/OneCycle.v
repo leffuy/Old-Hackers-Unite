@@ -91,6 +91,9 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	wire [(IMMBITS-1):0] imm=inst[(IMMBITS-1): 0];
 	wire [(DBITS-1):0]   dimm={{(DBITS-IMMBITS){imm[IMMBITS-1]}},imm};
 	wire [(DBITS-1):0]   bimm={{(DBITS-IMMBITS-1){imm[IMMBITS-1]}},imm,1'b0};
+	reg immsig,st2immsig;
+	always @(posedge clk)
+		st2immsig <= immsig;
 
 	wire [(DBITS-1):0] pctarg= pcplus+bimm;
 
@@ -176,7 +179,7 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 		.CMD_NAND(ALU_NAND),
 		.CMD_NOR( ALU_NOR),
 		.CMD_NXOR(ALU_NXOR)
-  ) alu(.A(rregout1),.B(st2aluin2),.CTL(st2alufunc),.OUT(aluout));
+	) alu(.A(rregout1),.B(st2immsig?st2aluin2:rregout2),.CTL(st2alufunc),.OUT(aluout));
 
 	wire branch = (jmptarg ^ brnchcmp)==16'b0;
 
@@ -247,7 +250,7 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
   wire [(DBITS-1):0] MemVal;
   // Connect memory array to other signals
   wire MemEnable=(dmemaddr[(DBITS-1):13]==3'b0);
-  MemArray #(.DBITS(DBITS),.ABITS(12),.MFILE("BEQtest.mif")) memArray(
+  MemArray #(.DBITS(DBITS),.ABITS(12),.MFILE("Test3.mif")) memArray(
     .ADDR1(dmemaddr[12:1]),.DOUT1(MemVal),
     .ADDR2(imemaddr[12:1]),.DOUT2(imemout),
     .DIN(dmemin),
@@ -264,15 +267,15 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	// E.g. for aluin2, you could have "assign aluin=regaluin2?regout2:dimm;" in the datapath, then set the "regaluin2" control signal here
 	always @(opcode1 or opcode2 or rdst or rsrc1 or rsrc2 or pcplus or pctarg or rregout1 or rregout2 or aluout or 
 	dmemout or dimm or branch or jmptarg) begin
-    {aluin2,  alufunc,wrmem, wregno,wrreg,nextPC}=
-    {{(DBITS){1'bX}},{4{1'bX}}, 1'b0, {3{1'bX}},1'b0 ,pcplus};
+    {aluin2,  alufunc,wrmem, wregno,wrreg,nextPC,immsig}=
+    {{(DBITS){1'bX}},{4{1'bX}}, 1'b0, {3{1'bX}},1'b0 ,pcplus,1'b0};
 	case(opcode1)
 	OP1_ALU:
-	  {aluin2,alufunc,wregno,wrreg}=
-	  {rregout2,opcode2,rdst,1'b1};
+	  {alufunc,wregno,wrreg}=
+	  {opcode2,rdst,1'b1};
 	OP1_ADDI:
-	  {aluin2,alufunc,wregno,wrreg} =
-	  {dimm,ALU_ADD,rsrc2,1'b1};
+	  {aluin2,alufunc,wregno,wrreg,immsig} =
+	  {dimm,ALU_ADD,rsrc2,1'b1,1'b1};
 	OP1_BEQ:
 	  {nextPC}=
      {(branch?pctarg:pcplus)};
@@ -280,11 +283,11 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
      {nextPC}=
      {(branch?pcplus:pctarg)};
    OP1_LW:
-     {aluin2,alufunc,wregno,wrreg} =
-     {dimm,ALU_ADD,rsrc2,1'b1};
+     {aluin2,alufunc,wregno,wrreg,immsig} =
+     {dimm,ALU_ADD,rsrc2,1'b1,1'b1};
    OP1_SW:
-     {aluin2,alufunc,wrmem} =
-     {dimm,ALU_ADD,1'b1};
+     {aluin2,alufunc,wrmem,immsig} =
+     {dimm,ALU_ADD,1'b1,1'b1};
    OP1_JMP: begin
 	  {wregno,wrreg,nextPC}=
 	  {rdst,1'b1,jmptarg};
