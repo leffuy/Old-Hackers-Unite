@@ -151,13 +151,12 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	end
 	
 	// The ALU unit
-	reg [(DBITS-1):0]  aluin1, aluin2, st2aluin1, st2aluin2, baluout;
+	reg [(DBITS-1):0]  aluin1, aluin2, st2aluin2, baluout;
 	wire [(DBITS-1):0] aluout;
 	// Decided by control logic
    reg [3:0] alufunc, st2alufunc;
 	
 	always @(posedge clk) begin
-		st2aluin1 <= aluin1;
 		st2aluin2 <= aluin2;
 		st2alufunc <= alufunc;
 	end
@@ -175,14 +174,12 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 		.CMD_NAND(ALU_NAND),
 		.CMD_NOR( ALU_NOR),
 		.CMD_NXOR(ALU_NXOR)
-  ) alu(.A(st2aluin1),.B(st2aluin2),.CTL(st2alufunc),.OUT(aluout));
+  ) alu(.A(rregout1),.B(st2aluin2),.CTL(st2alufunc),.OUT(aluout));
 
 	wire branch = (jmptarg ^ brnchcmp)==16'b0;
 
 	always @(posedge clk)
 		baluout <= aluout;
-	always @(aluin1 or rregout1)
-		aluin1 = rregout1;
 	
 	always @(bwrreg or bwregval or baluout or bopcode1 or dmemout or bpcplus) begin
 		bwregval = baluout;
@@ -229,9 +226,11 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 		end
 	end
 
-  always @(posedge clk) begin
-		LedROut = aluout[8:0];
-		LedROut[9] = branch;
+	always @(posedge clk) begin
+		//LedROut = rregout1;
+		LedROut = aluout;
+		//LedROut = aluout[8:0];
+		//LedROut[9] = branch;
 	end
 
 	reg st2wrmem, bwrmem;
@@ -243,7 +242,7 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
   wire [(DBITS-1):0] MemVal;
   // Connect memory array to other signals
   wire MemEnable=(dmemaddr[(DBITS-1):13]==3'b0);
-  MemArray #(.DBITS(DBITS),.ABITS(12),.MFILE("Test3.mif")) memArray(
+  MemArray #(.DBITS(DBITS),.ABITS(12),.MFILE("ALUtest.mif")) memArray(
     .ADDR1(dmemaddr[12:1]),.DOUT1(MemVal),
     .ADDR2(imemaddr[12:1]),.DOUT2(imemout),
     .DIN(dmemin),
