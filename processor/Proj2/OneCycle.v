@@ -23,19 +23,36 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	assign {HEX0,HEX1,HEX2,HEX3,LEDR,LEDG}={digit0,digit1,digit2,digit3,ledred,ledgreen};
 	parameter DBITS=16;
 
-	reg [(DBITS-1):0] PC=16'h200,nextPC;
+	reg [(DBITS-1):0] PC=16'h200;
 	always @(posedge clk)
 		if(lock)
-			PC <= nextPC;
+			PC <= tableout;
 	wire [(DBITS-1):0] pcplus=PC+16'd2;
 	reg [(DBITS-1):0] st2pcplus, bpcplus;
+       	reg [7:0] st2pc, bpc;
 	always @(posedge clk) begin
+		st2pc <= PC;
+		bpc <= st2pc;
 		st2pcplus <= pcplus;
 		bpcplus <= st2pcplus;
 	end
 
+	reg[(DBITS-1):0] wrtableval;
+	wire[(DBITS-1):0] tableout;
+	reg[7:0] wraddr;
+	reg wrtable;
+
+	TableArray2 Table(clk,wrtableval,PC[7:0],wraddr, wrtable, tableout);
+
+	/*
+	TableArray2 #(.DBITS(DBITS),.ABITS(8), .MFILE("Sorter2.mif")) Table(
+		.ADDR1(PC[7:0]),.DOUT1(tableout),
+		.ADDR2(wraddr),.DIN(wrtableval),
+		.WE(wrtable),.CLK(clk));
+	*/
+
 	// These are connected to the memory module
-	wire [(DBITS-1):0] imemaddr=PC;
+	wire [(DBITS-1):0] imemaddr=tableout;
 	wire [(DBITS-1):0] imemout;
 
 	wire [(DBITS-1):0] inst=imemout;
@@ -291,9 +308,9 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	// You may want to have these values selected in the datapath, and have the control logic just create selection signals
 	// E.g. for aluin2, you could have "assign aluin=regaluin2?regout2:dimm;" in the datapath, then set the "regaluin2" control signal here
 	always @(opcode1 or opcode2 or rdst or rsrc1 or rsrc2 or pcplus or pctarg or rregout1 or rregout2 or aluout or 
-	dmemout or dimm or  PC or bopcode1 or aluz or bpcplus or flush or st2opcode1 or bregout1) begin
-    {aluin2,  alufunc,wrmem, wregno,wrreg,nextPC,immsig,flush}=
-    {{(DBITS){1'bX}},{4{1'bX}}, 1'b0, {3{1'bX}},1'b0 ,pcplus,1'b0,1'b0};
+	dmemout or dimm or  PC or bopcode1 or aluz or bpcplus or flush or st2opcode1 or bregout1 or bpc or wrtable or wraddr or wrtableval) begin
+    {aluin2,  alufunc,wrmem, wregno,wrreg,immsig,flush}=
+    {{(DBITS){1'bX}},{4{1'bX}}, 1'b0, {3{1'bX}},1'b0 ,1'b0,1'b0};
 	case(opcode1)
 	OP1_ALU:
 		{alufunc,wregno,wrreg}=
@@ -302,11 +319,11 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 		{aluin2,alufunc,wregno,wrreg,immsig} =
 		{dimm,ALU_ADD,rsrc2,1'b1,1'b1};
 	OP1_BEQ:
-		{alufunc,nextPC}=
-		{ALU_XOR,pctarg};
+		{alufunc}=
+		{ALU_XOR};
 	OP1_BNE:
-		{alufunc,nextPC}=
-		{ALU_XOR,pctarg};
+		{alufunc}=
+		{ALU_XOR};
 	OP1_LW:
 		{aluin2,alufunc,wregno,wrreg,immsig} =
 		{dimm,ALU_ADD,rsrc2,1'b1,1'b1};
@@ -323,19 +340,25 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	// Branch Correction
 	if(aluz) begin
 		if( bopcode1 == OP1_BNE) begin
-			nextPC = bpcplus;
+			wrtableval = bpcplus;
+			wraddr = bpc;
+			wrtable = 1'b1;
 			flush = 1'b1;
 		end
 	end
 	else begin
 		if( bopcode1 == OP1_BEQ) begin
-			nextPC = bpcplus;
+			wrtableval = bpcplus;
+			wraddr = bpc;
+			wrtable = 1'b1;
 			flush = 1'b1;
 		end
 	end
 	if(bopcode1 == OP1_JMP) begin
+		wrtableval = bregout1;
+		wraddr = bpc;
+		wrtable = 1'b1;
 		flush = 1'b1;
-		nextPC = bregout1;
 	end
 
   end
