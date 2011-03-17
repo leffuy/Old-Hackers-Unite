@@ -47,7 +47,7 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	reg[7:0] wraddr;
 	reg wrtable;
 
-	TableArray2 Table(clk,wrtableval,PC[7:0],wraddr, wrtable, tableout);
+	TableArray2 Table(clk,wrtableval,flush?bpc:PC[7:0],wraddr, wrtable, tableout);
 
 	/*
 	TableArray2 #(.DBITS(DBITS),.ABITS(8), .MFILE("Sorter2.mif")) Table(
@@ -119,8 +119,8 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	wire [(DBITS-1):0]   bimm={{(DBITS-IMMBITS-1){imm[IMMBITS-1]}},imm,1'b0};
 	reg immsig, st2immsig, flush, st2flush, bflush;
 	always @(posedge clk) begin
-		st2flush = flush;
-		bflush = flush;
+		st2flush <= flush;
+		bflush <= st2flush;
 	end
 
 	always @(posedge clk)
@@ -319,7 +319,7 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	// This is the entire decoding logic. But it generates some values (aluin2, wregval, nextPC) in addition to control signals
 	// You may want to have these values selected in the datapath, and have the control logic just create selection signals
 	// E.g. for aluin2, you could have "assign aluin=regaluin2?regout2:dimm;" in the datapath, then set the "regaluin2" control signal here
-	always @(opcode1 or opcode2 or rdst or rsrc1 or rsrc2 or pcplus or pctarg or rregout1 or rregout2 or aluout or pcplus or pctarg or st2pctarg or st2pc or bpctarg or bflush or
+	always @(opcode1 or opcode2 or rdst or rsrc1 or rsrc2 or pcplus or pctarg or rregout1 or rregout2 or aluout or pcplus or pctarg or st2pctarg or st2pc or bpctarg or bflush or st2flush or
 	dmemout or dimm or  PC or bopcode1 or aluz or bpcplus or flush or st2opcode1 or bregout1 or bpc or wrtable or wraddr or wrtableval) begin
     {aluin2,  alufunc,wrmem, wregno,wrreg,immsig,flush,wrtable,wraddr,wrtableval}=
     {{(DBITS){1'bX}},{4{1'bX}}, 1'b0, {3{1'bX}},1'b0 ,1'b0,1'b0,1'b0,{(8){1'bX}},{(DBITS){1'bX}}};
