@@ -45,6 +45,10 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	always @(posedge clk) begin
 		st2opcode1 <= opcode1;
 		bopcode1 <= st2opcode1;
+		if(flush) begin
+			st2opcode1 <= 3'b111;
+			bopcode1 <= 3'b111;
+		end
 	end
 
 	// Provide nice names for opcode1 values
@@ -91,7 +95,7 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	wire [(IMMBITS-1):0] imm=inst[(IMMBITS-1): 0];
 	wire [(DBITS-1):0]   dimm={{(DBITS-IMMBITS){imm[IMMBITS-1]}},imm};
 	wire [(DBITS-1):0]   bimm={{(DBITS-IMMBITS-1){imm[IMMBITS-1]}},imm,1'b0};
-	reg immsig,st2immsig;
+	reg immsig, st2immsig, flush, flushsig;
 	always @(posedge clk)
 		st2immsig <= immsig;
 
@@ -101,7 +105,7 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	wire [2:0] rregno1=rsrc1, rregno2=rsrc2;
 	reg [2:0] st2rregno1, st2rregno2;
 	wire [(DBITS-1):0] regout1, regout2;
-	reg [(DBITS-1):0] rregout1, rregout2, st2regout1, st2regout2, bregout2, jmptarg, brnchcmp;
+	reg [(DBITS-1):0] rregout1, rregout2, st2regout1, st2regout2, bregout1, bregout2, jmptarg; 
 	// These three are optimized-out "reg" (control logic uses an always-block)
 	// But wregno may come from rsrc2 or rdst fields (decided by control logic)
 	reg [2:0] wregno, st2wregno, bwregno;
@@ -121,10 +125,14 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 
 		st2rregno1 <= rregno1;
 		st2rregno2 <= rregno2;
-		//st2regout1 <= regout1;
-		//st2regout2 <= regout2;
 
+		bregout1 <= rregout1;
 		bregout2 <= rregout2;
+
+		if(flush) begin
+			st2wrreg <= 1'b0;
+			bwrreg <= 1'b0;
+		end
 	end
 	
 	always @(posedge clk) begin
@@ -136,12 +144,6 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 			if(rregno2 == bwregno)
 				st2regout2 <= bwregval;
 		end
-		/*if(st2wrreg && (st2opcode1 != OP1_LW)) begin
-			if(rregno1 == st2wregno)
-				st2regout1 <= aluout;
-			if(rregno2 == st2wregno)
-				st2regout2 <= aluout;
-		end*/
 	end
 
 	always @(st2rregno1 or st2rregno2 or rregout1 or rregout2 or regout1 or regout2 or bwrreg or bwregno or bwregval or st2regout1 or st2regout2) begin
@@ -154,8 +156,8 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 				rregout2 = bwregval;
 		end
 	end
-	
-	always @(rregno1 or regout1 or regout2 or rregno2 or st2wrreg or st2wregno or st2opcode1 or aluout or jmptarg or brnchcmp or bwrreg or bwregno or bwregval) begin
+/*	
+	always @(rregno1 or regout1 or regout2 or rregno2 or st2wrreg or st2wregno or st2opcode1 or aluout or jmptarg or bwrreg or bwregno or bwregval) begin
 		jmptarg = regout1;
 		if(bwrreg) begin
 			if(rregno1 == bwregno)
@@ -166,8 +168,10 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 				jmptarg = aluout;
 		end
 	end
-
-	wire aluz = (rregout1 ^ rregout2) == 16'h0000;
+*/
+	reg aluz;
+	always @(baluout or aluz)
+		aluz = baluout == 16'h0000;
 	
 	// The ALU unit
 	reg [(DBITS-1):0]  aluin1, aluin2, st2aluin2, baluout;
@@ -197,24 +201,14 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 
 	always @(posedge clk)
 		baluout <= aluout;
-	always @(bwrreg or bwregval or baluout or bopcode1 or dmemout or bpcplus) begin
-		bwregval = 16'bX;
-		if(bwrreg) begin
-			if(bopcode1 == OP1_LW)
-				bwregval = dmemout;
-			else if(bopcode1 == OP1_JMP)
-				bwregval = bpcplus;
-			else
-				bwregval = baluout;
-		end
-	end	/*
+
 	always @(bwrreg or bwregval or baluout or bopcode1 or dmemout or bpcplus) begin
 		bwregval = baluout;
 		if(bopcode1 == OP1_LW)		// TODO: think of a brilliant way to remove the need for bopcode1
 			bwregval = dmemout;
 		else if(bopcode1 == OP1_JMP)
 			bwregval = bpcplus;
-	end*/
+	end
 
 
   // Used by control logic for BEQ and BNE (is ALU output zero?)
@@ -234,8 +228,10 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
   SevenSeg ss2(.OUT(digit2),.IN(HexOut[11:8]));
   SevenSeg ss1(.OUT(digit1),.IN(HexOut[7:4]));
   SevenSeg ss0(.OUT(digit0),.IN(HexOut[3:0]));
-  	/*always @(posedge clk)
-		HexOut=inst;*/
+  /*
+  	always @(posedge clk)
+		HexOut=inst;
+	*/
 		
   
   reg [7:0] LedGOut;
@@ -253,21 +249,27 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 				LedGOut <= dmemin[7:0];
 		end
 	end
-
-	/*always @(posedge clk) begin
+	
+	/*
+	always @(posedge clk) begin
 		//LedROut[2:0] = bwregno;
 		//LedROut[5:3] = st2rregno1;
 		//LedROut[8:6] = st2rregno2;
 		//LedROut = rregout2;
 		//LedROut = st2aluin2;
-		//LedROut = aluout;
+		LedROut = aluout;
 		//LedROut = aluout[8:0];
-	end*/
+	end
+	*/
 
 	reg st2wrmem, bwrmem;
 	always @(posedge clk) begin
 		st2wrmem <= wrmem;
 		bwrmem <= st2wrmem;
+		if(flush) begin
+			st2wrmem <= 1'b0;
+			bwrmem <= 1'b0;
+		end
 	end
 
   wire [(DBITS-1):0] MemVal;
@@ -289,9 +291,9 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	// You may want to have these values selected in the datapath, and have the control logic just create selection signals
 	// E.g. for aluin2, you could have "assign aluin=regaluin2?regout2:dimm;" in the datapath, then set the "regaluin2" control signal here
 	always @(opcode1 or opcode2 or rdst or rsrc1 or rsrc2 or pcplus or pctarg or rregout1 or rregout2 or aluout or 
-	dmemout or dimm or  jmptarg or PC or st2opcode1 or aluz or st2pcplus) begin
-    {aluin2,  alufunc,wrmem, wregno,wrreg,nextPC,immsig}=
-    {{(DBITS){1'bX}},{4{1'bX}}, 1'b0, {3{1'bX}},1'b0 ,pcplus,1'b0};
+	dmemout or dimm or  PC or bopcode1 or aluz or bpcplus or flush or st2opcode1 or bregout1) begin
+    {aluin2,  alufunc,wrmem, wregno,wrreg,nextPC,immsig,flush}=
+    {{(DBITS){1'bX}},{4{1'bX}}, 1'b0, {3{1'bX}},1'b0 ,pcplus,1'b0,1'b0};
 	case(opcode1)
 	OP1_ALU:
 		{alufunc,wregno,wrreg}=
@@ -312,31 +314,28 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 		{aluin2,alufunc,wrmem,immsig} =
 		{dimm,ALU_ADD,1'b1,1'b1};
 	OP1_JMP: begin
-		if(st2opcode1 == OP1_LW ) begin
-			nextPC=PC;
-		end
-		else begin
-			{wregno,wrreg,nextPC}=
-			{rdst,1'b1,jmptarg};
-		end
+		{wregno,wrreg}=
+		{rdst,1'b1};
 	end
 	default:
 	  ;
 	endcase
 	// Branch Correction
 	if(aluz) begin
-		if( st2opcode1 == OP1_BNE) begin
-			nextPC = st2pcplus;
-			wrreg = 1'b0;
-			wrmem = 1'b0;
+		if( bopcode1 == OP1_BNE) begin
+			nextPC = bpcplus;
+			flush = 1'b1;
 		end
 	end
 	else begin
-		if( st2opcode1 == OP1_BEQ) begin
-			nextPC = st2pcplus;
-			wrreg = 1'b0;
-			wrmem = 1'b0;
+		if( bopcode1 == OP1_BEQ) begin
+			nextPC = bpcplus;
+			flush = 1'b1;
 		end
+	end
+	if(bopcode1 == OP1_JMP) begin
+		flush = 1'b1;
+		nextPC = bregout1;
 	end
 
   end
