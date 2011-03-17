@@ -161,13 +161,13 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 			if(rregno1 == bwregno)
 				jmptarg = bwregval;
 		end
-		if(st2wrreg && (st2opcode1 != OP1_LW)) begin
+		if(st2wrreg) begin
 			if(rregno1 == st2wregno)
 				jmptarg = aluout;
 		end
 	end
 
-	wire aluz = (aluout == 16'h000);
+	wire aluz = (rregout1 ^ rregout2) == 16'h0000;
 	
 	// The ALU unit
 	reg [(DBITS-1):0]  aluin1, aluin2, st2aluin2, baluout;
@@ -254,7 +254,7 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 		end
 	end
 
-	always @(posedge clk) begin
+	/*always @(posedge clk) begin
 		//LedROut[2:0] = bwregno;
 		//LedROut[5:3] = st2rregno1;
 		//LedROut[8:6] = st2rregno2;
@@ -262,7 +262,7 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 		//LedROut = st2aluin2;
 		//LedROut = aluout;
 		//LedROut = aluout[8:0];
-	end
+	end*/
 
 	reg st2wrmem, bwrmem;
 	always @(posedge clk) begin
