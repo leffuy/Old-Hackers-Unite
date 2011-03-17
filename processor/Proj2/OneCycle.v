@@ -11,11 +11,11 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	wire [9:0] ledred;
 
 	// Warning: The file you submit for Project 1 must use a PLL with a 50% duty cycle
-	wire clk,lock;
-	OneCycPll oneCycPll(.inclk0(CLOCK_50),.c0(clk),.locked(lock));
-	//wire clk = KEY[0];
+	//wire clk,lock;
+	//OneCycPll oneCycPll(.inclk0(CLOCK_50),.c0(clk),.locked(lock));
+	wire clk = KEY[0];
 	//wire clk = CLOCK_50;
-	//wire lock = 1'b1;
+	wire lock = 1'b1;
 	wire [3:0] keys=KEY;
 	wire [9:0] switches=SW;
 	//assign LEDR = opcode1;
@@ -140,20 +140,17 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	
 	always @(rregno1 or regout1 or regout2 or rregno2 or st2wrreg or st2wregno or st2opcode1 or aluout or jmptarg or brnchcmp or bwrreg or bwregno or bwregval) begin
 		jmptarg = regout1;
-		brnchcmp = regout2;
 		if(bwrreg) begin
 			if(rregno1 == bwregno)
 				jmptarg = bwregval;
-			if(rregno2 == bwregno)
-				brnchcmp = bwregval;
 		end
 		if(st2wrreg && (st2opcode1 != OP1_LW)) begin
 			if(rregno1 == st2wregno)
 				jmptarg = aluout;
-			if(rregno2 == st2wregno)
-				brnchcmp = aluout;
 		end
 	end
+
+	wire aluz = aluout == 16'h000;
 	
 	// The ALU unit
 	reg [(DBITS-1):0]  aluin1, aluin2, st2aluin2, baluout;
@@ -180,8 +177,6 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 		.CMD_NOR( ALU_NOR),
 		.CMD_NXOR(ALU_NXOR)
 	) alu(.A(rregout1),.B(st2immsig?st2aluin2:rregout2),.CTL(st2alufunc),.OUT(aluout));
-
-	wire branch = (jmptarg ^ brnchcmp)==16'b0;
 
 	always @(posedge clk)
 		baluout <= aluout;
@@ -212,9 +207,9 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
   SevenSeg ss2(.OUT(digit2),.IN(HexOut[11:8]));
   SevenSeg ss1(.OUT(digit1),.IN(HexOut[7:4]));
   SevenSeg ss0(.OUT(digit0),.IN(HexOut[3:0]));
-  /*always @(posedge clk)
+  	always @(posedge clk)
 		HexOut=inst;
-		*/
+		
   
   reg [7:0] LedGOut;
   assign ledgreen=LedGOut;
@@ -223,11 +218,11 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	always @(posedge clk) begin
 		if(bwrmem) begin
 			// Insert code to store HexOut, LedROut, and LedGOut from dmemin when appropriate
-			if(dmemaddr[3:0] == 4'h8)
+			/*if(dmemaddr[3:0] == 4'h8)
 				HexOut <= dmemin;
 			else if(dmemaddr[3:0] == 4'ha)
 				LedROut <= dmemin[9:0];
-			else if(dmemaddr[3:0] == 4'hc)
+			else*/ if(dmemaddr[3:0] == 4'hc)
 				LedGOut <= dmemin[7:0];
 		end
 	end
@@ -237,9 +232,8 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 		//LedROut[5:3] = st2rregno1;
 		//LedROut[8:6] = st2rregno2;
 	//	LedROut = rregout1;
-//		LedROut = aluout;
+		LedROut = aluout;
 		//LedROut = aluout[8:0];
-		//LedROut[9] = branch;
 	end
 
 	reg st2wrmem, bwrmem;
@@ -251,7 +245,7 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
   wire [(DBITS-1):0] MemVal;
   // Connect memory array to other signals
   wire MemEnable=(dmemaddr[(DBITS-1):13]==3'b0);
-  MemArray #(.DBITS(DBITS),.ABITS(12),.MFILE("Sorter3.mif")) memArray(
+  MemArray #(.DBITS(DBITS),.ABITS(12),.MFILE("ALUtest.mif")) memArray(
     .ADDR1(dmemaddr[12:1]),.DOUT1(MemVal),
     .ADDR2(imemaddr[12:1]),.DOUT2(imemout),
     .DIN(dmemin),
@@ -259,42 +253,36 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	
   // Insert code to output MemVal, keys, or switches according to the dmemaddr
   wire [(DBITS-1):0] dmemout=MemEnable?MemVal:
-		//(dmemaddr==16'hfff0)?{KEY[3],KEY[2],KEY[1],1'b1}:
-		(dmemaddr==16'hfff0)?keys:
+		(dmemaddr==16'hfff0)?{KEY[3],KEY[2],KEY[1],1'b1}:
+		//(dmemaddr==16'hfff0)?keys:
 		(dmemaddr==16'hfff2)?switches:16'hDEAD;
 
 	// This is the entire decoding logic. But it generates some values (aluin2, wregval, nextPC) in addition to control signals
 	// You may want to have these values selected in the datapath, and have the control logic just create selection signals
 	// E.g. for aluin2, you could have "assign aluin=regaluin2?regout2:dimm;" in the datapath, then set the "regaluin2" control signal here
 	always @(opcode1 or opcode2 or rdst or rsrc1 or rsrc2 or pcplus or pctarg or rregout1 or rregout2 or aluout or 
-	dmemout or dimm or branch or jmptarg or PC or st2opcode1) begin
+	dmemout or dimm or  jmptarg or PC or st2opcode1 or aluz or st2pcplus) begin
     {aluin2,  alufunc,wrmem, wregno,wrreg,nextPC,immsig}=
     {{(DBITS){1'bX}},{4{1'bX}}, 1'b0, {3{1'bX}},1'b0 ,pcplus,1'b0};
 	case(opcode1)
 	OP1_ALU:
-	  {alufunc,wregno,wrreg}=
-	  {opcode2,rdst,1'b1};
+		{alufunc,wregno,wrreg}=
+		{opcode2,rdst,1'b1};
 	OP1_ADDI:
-	  {aluin2,alufunc,wregno,wrreg,immsig} =
-	  {dimm,ALU_ADD,rsrc2,1'b1,1'b1};
+		{aluin2,alufunc,wregno,wrreg,immsig} =
+		{dimm,ALU_ADD,rsrc2,1'b1,1'b1};
 	OP1_BEQ:
-		if(st2opcode1 == OP1_LW )
-			nextPC=PC;
-		else
-			{alufunc,nextPC}=
-			{ALU_XOR,(branch?pctarg:pcplus)};
+		{alufunc,nextPC}=
+		{ALU_XOR,pctarg};
 	OP1_BNE:
-		if(st2opcode1 == OP1_LW )
-			nextPC=PC;
-		else
-			{alufunc,nextPC}=
-			{ALU_XOR,(branch?pcplus:pctarg)};
+		{alufunc,nextPC}=
+		{ALU_XOR,pctarg};
 	OP1_LW:
 		{aluin2,alufunc,wregno,wrreg,immsig} =
 		{dimm,ALU_ADD,rsrc2,1'b1,1'b1};
-   OP1_SW:
-     {aluin2,alufunc,wrmem,immsig} =
-     {dimm,ALU_ADD,1'b1,1'b1};
+	OP1_SW:
+		{aluin2,alufunc,wrmem,immsig} =
+		{dimm,ALU_ADD,1'b1,1'b1};
 	OP1_JMP: begin
 		if(st2opcode1 == OP1_LW ) begin
 			nextPC=PC;
@@ -307,6 +295,22 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	default:
 	  ;
 	endcase
+	// Branch Correction
+	if(aluz) begin
+		if( st2opcode1 == OP1_BNE) begin
+			nextPC = st2pcplus;
+			wrreg = 1'b0;
+			wrmem = 1'b0;
+		end
+	end
+	else begin
+		if( st2opcode1 == OP1_BEQ) begin
+			nextPC = st2pcplus;
+			wrreg = 1'b0;
+			wrmem = 1'b0;
+		end
+	end
+
   end
 
 endmodule
