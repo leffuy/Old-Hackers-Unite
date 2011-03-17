@@ -16,7 +16,7 @@ JRL RV,R1
 broke2:
 XOR R0,R0,R0
 SUBI R0,R0,1
-SW R0,-4(GP)
+SW R0,-6(GP)
 bloop2:
 BEQ R0,R0,bloop2
 
@@ -34,7 +34,7 @@ JRL RV,R1
 broke:
 XOR R0,R0,R0
 SUBI R0,R0,2
-SW R0,-4(GP)
+SW R0,-6(GP)
 bloop:
 BEQ R0,R0,bloop
 

@@ -11,11 +11,11 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	wire [9:0] ledred;
 
 	// Warning: The file you submit for Project 1 must use a PLL with a 50% duty cycle
-	//wire clk,lock;
-	//OneCycPll oneCycPll(.inclk0(CLOCK_50),.c0(clk),.locked(lock));
-	wire clk = KEY[0];
+	wire clk,lock;
+	OneCycPll oneCycPll(.inclk0(CLOCK_50),.c0(clk),.locked(lock));
+	//wire clk = KEY[0];
 	//wire clk = CLOCK_50;
-	wire lock = 1'b1;
+	//wire lock = 1'b1;
 	wire [3:0] keys=KEY;
 	wire [9:0] switches=SW;
 	//assign LEDR = opcode1;
@@ -121,12 +121,29 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 
 		st2rregno1 <= rregno1;
 		st2rregno2 <= rregno2;
-		st2regout1 <= regout1;
-		st2regout2 <= regout2;
+		//st2regout1 <= regout1;
+		//st2regout2 <= regout2;
 
 		bregout2 <= rregout2;
 	end
 	
+	always @(posedge clk) begin
+		st2regout1 <= regout1;
+		st2regout2 <= regout2;
+		if(bwrreg) begin
+			if(rregno1 == bwregno)
+				st2regout1 <= bwregval;
+			if(rregno2 == bwregno)
+				st2regout2 <= bwregval;
+		end
+		if(st2wrreg) begin
+			if(rregno1 == st2wregno)
+				st2regout1 <= aluout;
+			if(rregno2 == st2wregno)
+				st2regout2 <= aluout;
+		end
+	end
+
 	always @(st2rregno1 or st2rregno2 or rregout1 or rregout2 or regout1 or regout2 or bwrreg or bwregno or bwregval or st2regout1 or st2regout2) begin
 		rregout1 = st2regout1;
 		rregout2 = st2regout2;
@@ -156,7 +173,7 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	reg [(DBITS-1):0]  aluin1, aluin2, st2aluin2, baluout;
 	wire [(DBITS-1):0] aluout;
 	// Decided by control logic
-   reg [3:0] alufunc, st2alufunc;
+	reg [3:0] alufunc, st2alufunc;
 	
 	always @(posedge clk) begin
 		st2aluin2 <= aluin2;
@@ -180,14 +197,24 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 
 	always @(posedge clk)
 		baluout <= aluout;
-	
+	always @(bwrreg or bwregval or baluout or bopcode1 or dmemout or bpcplus) begin
+		bwregval = 16'bX;
+		if(bwrreg) begin
+			if(bopcode1 == OP1_LW)
+				bwregval = dmemout;
+			else if(bopcode1 == OP1_JMP)
+				bwregval = bpcplus;
+			else
+				bwregval = baluout;
+		end
+	end	/*
 	always @(bwrreg or bwregval or baluout or bopcode1 or dmemout or bpcplus) begin
 		bwregval = baluout;
 		if(bopcode1 == OP1_LW)		// TODO: think of a brilliant way to remove the need for bopcode1
 			bwregval = dmemout;
 		else if(bopcode1 == OP1_JMP)
 			bwregval = bpcplus;
-	end
+	end*/
 
 
   // Used by control logic for BEQ and BNE (is ALU output zero?)
@@ -207,8 +234,10 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
   SevenSeg ss2(.OUT(digit2),.IN(HexOut[11:8]));
   SevenSeg ss1(.OUT(digit1),.IN(HexOut[7:4]));
   SevenSeg ss0(.OUT(digit0),.IN(HexOut[3:0]));
+  /*
   	always @(posedge clk)
 		HexOut=inst;
+	*/
 		
   
   reg [7:0] LedGOut;
@@ -218,11 +247,11 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	always @(posedge clk) begin
 		if(bwrmem) begin
 			// Insert code to store HexOut, LedROut, and LedGOut from dmemin when appropriate
-			/*if(dmemaddr[3:0] == 4'h8)
+			if(dmemaddr[3:0] == 4'h8)
 				HexOut <= dmemin;
 			else if(dmemaddr[3:0] == 4'ha)
 				LedROut <= dmemin[9:0];
-			else*/ if(dmemaddr[3:0] == 4'hc)
+			else if(dmemaddr[3:0] == 4'hc)
 				LedGOut <= dmemin[7:0];
 		end
 	end
@@ -231,8 +260,9 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 		//LedROut[2:0] = bwregno;
 		//LedROut[5:3] = st2rregno1;
 		//LedROut[8:6] = st2rregno2;
-	//	LedROut = rregout1;
-		LedROut = aluout;
+		//LedROut = rregout2;
+		//LedROut = st2aluin2;
+		//LedROut = aluout;
 		//LedROut = aluout[8:0];
 	end
 
@@ -245,7 +275,7 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
   wire [(DBITS-1):0] MemVal;
   // Connect memory array to other signals
   wire MemEnable=(dmemaddr[(DBITS-1):13]==3'b0);
-  MemArray #(.DBITS(DBITS),.ABITS(12),.MFILE("ALUtest.mif")) memArray(
+  MemArray #(.DBITS(DBITS),.ABITS(12),.MFILE("BEQtest.mif")) memArray(
     .ADDR1(dmemaddr[12:1]),.DOUT1(MemVal),
     .ADDR2(imemaddr[12:1]),.DOUT2(imemout),
     .DIN(dmemin),
@@ -253,8 +283,8 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	
   // Insert code to output MemVal, keys, or switches according to the dmemaddr
   wire [(DBITS-1):0] dmemout=MemEnable?MemVal:
-		(dmemaddr==16'hfff0)?{KEY[3],KEY[2],KEY[1],1'b1}:
-		//(dmemaddr==16'hfff0)?keys:
+		//(dmemaddr==16'hfff0)?{KEY[3],KEY[2],KEY[1],1'b1}:
+		(dmemaddr==16'hfff0)?keys:
 		(dmemaddr==16'hfff2)?switches:16'hDEAD;
 
 	// This is the entire decoding logic. But it generates some values (aluin2, wregval, nextPC) in addition to control signals
