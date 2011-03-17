@@ -136,12 +136,12 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 			if(rregno2 == bwregno)
 				st2regout2 <= bwregval;
 		end
-		if(st2wrreg) begin
+		/*if(st2wrreg && (st2opcode1 != OP1_LW)) begin
 			if(rregno1 == st2wregno)
 				st2regout1 <= aluout;
 			if(rregno2 == st2wregno)
 				st2regout2 <= aluout;
-		end
+		end*/
 	end
 
 	always @(st2rregno1 or st2rregno2 or rregout1 or rregout2 or regout1 or regout2 or bwrreg or bwregno or bwregval or st2regout1 or st2regout2) begin
@@ -167,7 +167,7 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 		end
 	end
 
-	wire aluz = aluout == 16'h000;
+	wire aluz = (aluout == 16'h000);
 	
 	// The ALU unit
 	reg [(DBITS-1):0]  aluin1, aluin2, st2aluin2, baluout;
@@ -234,10 +234,8 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
   SevenSeg ss2(.OUT(digit2),.IN(HexOut[11:8]));
   SevenSeg ss1(.OUT(digit1),.IN(HexOut[7:4]));
   SevenSeg ss0(.OUT(digit0),.IN(HexOut[3:0]));
-  /*
-  	always @(posedge clk)
-		HexOut=inst;
-	*/
+  	/*always @(posedge clk)
+		HexOut=inst;*/
 		
   
   reg [7:0] LedGOut;
@@ -247,11 +245,11 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	always @(posedge clk) begin
 		if(bwrmem) begin
 			// Insert code to store HexOut, LedROut, and LedGOut from dmemin when appropriate
-			if(dmemaddr[3:0] == 4'h8)
+			if(dmemaddr == 16'hFFF8)
 				HexOut <= dmemin;
-			else if(dmemaddr[3:0] == 4'ha)
+			else if(dmemaddr == 16'hFFFA)
 				LedROut <= dmemin[9:0];
-			else if(dmemaddr[3:0] == 4'hc)
+			else if(dmemaddr == 16'hFFFC)
 				LedGOut <= dmemin[7:0];
 		end
 	end
@@ -275,7 +273,7 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
   wire [(DBITS-1):0] MemVal;
   // Connect memory array to other signals
   wire MemEnable=(dmemaddr[(DBITS-1):13]==3'b0);
-  MemArray #(.DBITS(DBITS),.ABITS(12),.MFILE("BEQtest.mif")) memArray(
+  MemArray #(.DBITS(DBITS),.ABITS(12),.MFILE("Sorter3.mif")) memArray(
     .ADDR1(dmemaddr[12:1]),.DOUT1(MemVal),
     .ADDR2(imemaddr[12:1]),.DOUT2(imemout),
     .DIN(dmemin),
