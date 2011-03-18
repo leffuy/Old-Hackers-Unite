@@ -28,7 +28,7 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 		if(lock) begin
 			PC <= tableout;
 			if(flush)
-				PC <= bpc;
+				PC <= st2pc;
 		end
 		
 	end
@@ -120,7 +120,7 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	reg immsig, st2immsig, flush, st2flush, bflush;
 	always @(posedge clk) begin
 		st2flush = flush;
-		bflush = flush;
+		bflush = st2flush;
 	end
 
 	always @(posedge clk)
@@ -304,7 +304,7 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
   wire [(DBITS-1):0] MemVal;
   // Connect memory array to other signals
   wire MemEnable=(dmemaddr[(DBITS-1):13]==3'b0);
-  MemArray #(.DBITS(DBITS),.ABITS(12),.MFILE("Test3.mif")) memArray(
+  MemArray #(.DBITS(DBITS),.ABITS(12),.MFILE("ALUtest.mif")) memArray(
     .ADDR1(dmemaddr[12:1]),.DOUT1(MemVal),
     .ADDR2(imemaddr[12:1]),.DOUT2(imemout),
     .DIN(dmemin),
@@ -350,36 +350,36 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	  ;
 	endcase
 	// Branch Correction
-	if(!bflush) begin
-		if(bpcplus != st2pc ) begin
-			wrtableval = bpcplus;
+	//if(!(bflush|st2flush)) begin
+		if(st2pcplus != PC ) begin
+			wrtableval = st2pcplus;
 			flush = 1'b1;
 			wrtable = 1'b1;
 			wraddr = bpc;
 		end
 		if(aluz) begin
-			if( bopcode1 == OP1_BEQ) begin
-				wrtableval = bpctarg;
+			if( st2opcode1 == OP1_BEQ) begin
+				wrtableval = st2pctarg;
 				wraddr = bpc;
 				wrtable = 1'b1;
 				flush = 1'b1;
 			end
 		end
 		else begin
-			if( bopcode1 == OP1_BNE) begin
-				wrtableval = bpctarg;
+			if( st2opcode1 == OP1_BNE) begin
+				wrtableval = st2pctarg;
 				wraddr = bpc;
 				wrtable = 1'b1;
 				flush = 1'b1;
 			end
 		end
-		if(bopcode1 == OP1_JMP) begin
-			wrtableval = bregout1;
+		if(st2opcode1 == OP1_JMP) begin
+			wrtableval = rregout1;
 			wraddr = bpc;
 			wrtable = 1'b1;
 			flush = 1'b1;
 		end
-	end
+	//end
 
   end
 
