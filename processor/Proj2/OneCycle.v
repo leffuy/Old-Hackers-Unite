@@ -13,8 +13,8 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	// Warning: The file you submit for Project 1 must use a PLL with a 50% duty cycle
 	//wire clk,lock;
 	//OneCycPll oneCycPll(.inclk0(CLOCK_50),.c0(clk),.locked(lock));
-	wire clk = KEY[0];
-	//wire clk = CLOCK_50;
+	//wire clk = KEY[0];
+	wire clk = CLOCK_50;
 	wire lock = 1'b1;
 	wire [3:0] keys=KEY;
 	wire [9:0] switches=SW;
@@ -27,7 +27,13 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	always @(posedge clk) if(lock) preinit<=1'b0;
 
 	reg init=1'b1;
-	always @(posedge clk) if(lock && !preinit) init<=1'b0;
+	always @(posedge clk) if(lock && !preinit /*&& counter == 6'd15*/) init<=1'b0;
+
+	/*
+	reg [5:0] counter = 6'd0;
+	always @(posedge clk)
+		counter <= counter+1;
+	*/
 
 	reg [(DBITS-1):0] PC=16'h200;
 	always @(posedge clk) if (lock) begin
@@ -44,10 +50,10 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
        	reg [(DBITS-1):0] st2pc, bpc;
 	always @(posedge clk) begin
 		if(init) begin
-			st2pc <= 16'h000;
-			bpc <= 16'h000;
-			st2pcplus <= 16'h000;
-			bpcplus <= 16'h000;
+			st2pc <= 16'h200;
+			bpc <= 16'h200;
+			st2pcplus <= 16'h202;
+			bpcplus <= 16'h202;
 		end
 		else begin
 			st2pc <= PC;
@@ -141,9 +147,9 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	always @(posedge clk)
 		st2immsig <= immsig;
 
-	reg [(DBITS-1):0] pctarg, st2pctarg, bpctarg;
+	wire [(DBITS-1):0] pctarg = pcplus+bimm;
+	reg [(DBITS-1):0] st2pctarg, bpctarg;
 	always @(posedge clk) begin
-		pctarg <= pcplus+bimm;
 		st2pctarg <= pctarg;
 		bpctarg <= st2pctarg;
 	end
@@ -358,7 +364,7 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	  ;
 	endcase
 	// Branch Correction
-	if(!bflush) begin
+	if(!bflush && !st2flush) begin
 		if(bpcplus != st2pc ) begin
 			wrtableval = bpcplus;
 			flush = 1'b1;
