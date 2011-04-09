@@ -180,7 +180,6 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 		end
 		*/
 	end
-
 	always @(rregno1_A or rregno2_A or rregout1_A or rregout2_A or regout1 or regout2 or wrreg_M or wregno_M or wregval_M or regout1_A or regout2_A) begin
 		rregout1_A = regout1_A;
 		rregout2_A = regout2_A;
@@ -218,7 +217,7 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	
 	// The ALU unit
 	reg [(DBITS-1):0]  aluin1, aluin2, aluin2_A, aluout_M;
-	wire [(DBITS-1):0] aluout;
+	wire [(DBITS-1):0] aluout_A;
 	// Decided by control logic
 	reg [3:0] alufunc, alufunc_A;
 	
@@ -240,10 +239,10 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 		.CMD_NAND(ALU_NAND),
 		.CMD_NOR( ALU_NOR),
 		.CMD_NXOR(ALU_NXOR)
-	) alu(.A(rregout1_A),.B(immsig_A?aluin2_A:rregout2_A),.CTL(alufunc_A),.OUT(aluout));
+	) alu(.A(rregout1_A),.B(immsig_A?aluin2_A:rregout2_A),.CTL(alufunc_A),.OUT(aluout_A));
 
 	always @(posedge clk)
-		aluout_M <= aluout;
+		aluout_M <= aluout_A;
 
 	always @(wrreg_M or wregval_M or aluout_M or JMPsig_M or LWsig_M or dmemout or pcplus_M) begin
 		wregval_M = aluout_M;
@@ -333,7 +332,7 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	// This is the entire decoding logic. But it generates some values (aluin2, wregval, nextPC) in addition to control signals
 	// You may want to have these values selected in the datapath, and have the control logic just create selection signals
 	// E.g. for aluin2, you could have "assign aluin=regaluin2?regout2:dimm;" in the datapath, then set the "regaluin2" control signal here
-	always @(opcode1 or opcode2 or rdst or rsrc1 or rsrc2 or pcplus or pctarg or rregout1_A or rregout2_A or aluout or 
+	always @(opcode1 or opcode2 or rdst or rsrc1 or rsrc2 or pcplus or pctarg or rregout1_A or rregout2_A or  
 	dmemout or dimm or  PC or aluz or pcplus_M or flush or regout1_M or BEQsig_D or BNEsig_D or
  	JMPsig_D or BEQsig_M or BNEsig_M or JMPsig_M ) begin
     {aluin2,  alufunc,wrmem, wregno,wrreg,nextPC,immsig,flush,BEQsig_D,BNEsig_D,JMPsig_D,LWsig_D}=
