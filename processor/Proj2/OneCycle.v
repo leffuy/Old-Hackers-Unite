@@ -40,16 +40,6 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 
 	wire [(DBITS-1):0] inst=imemout;
 	wire [2:0] opcode1=inst[15:13];
-	reg [2:0] opcode1_A, opcode1_M, opcode1_W;
-
-	always @(posedge clk) begin
-		opcode1_A <= opcode1;
-		opcode1_M <= opcode1_A;
-		if(flush) begin
-			opcode1_A <= 3'b111;
-			opcode1_M <= 3'b111;
-		end
-	end
 
 	// Provide nice names for opcode1 values
 	parameter
@@ -100,7 +90,8 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	reg immsig, immsig_A, flush, flushsig, 
 		BEQsig_D, BNEsig_D,JMPsig_D,
 		BEQsig_A, BNEsig_A,JMPsig_A,
-		BEQsig_M, BNEsig_M,JMPsig_M;
+		BEQsig_M, BNEsig_M,JMPsig_M,
+		LWsig_D, LWsig_A, LWsig_M;
 	always @(posedge clk) begin
 		immsig_A <= immsig;
 
@@ -112,6 +103,9 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 		BNEsig_M <= BNEsig_A;
 		JMPsig_M <= JMPsig_A;
 
+		LWsig_A <= LWsig_D;
+		LWsig_M <= LWsig_A;
+
 		if(flush) begin
 			BEQsig_A <= 1'b0;
 			BNEsig_A <= 1'b0;
@@ -120,6 +114,9 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 			BEQsig_M <= 1'b0;
 			BNEsig_M <= 1'b0;
 			JMPsig_M <= 1'b0;
+
+			LWsig_A <= 1'b0;
+			LWsig_M <= 1'b0;
 		end
 	end
 
@@ -248,11 +245,11 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	always @(posedge clk)
 		aluout_M <= aluout;
 
-	always @(wrreg_M or wregval_M or aluout_M or opcode1_M or dmemout or pcplus_M) begin
+	always @(wrreg_M or wregval_M or aluout_M or JMPsig_M or LWsig_M or dmemout or pcplus_M) begin
 		wregval_M = aluout_M;
-		if(opcode1_M == OP1_LW)		// TODO: think of a brilliant way to remove the need for opcode1_M
+		if(LWsig_M)		
 			wregval_M = dmemout;
-		else if(opcode1_M == OP1_JMP)
+		else if(JMPsig_M)
 			wregval_M = pcplus_M;
 	end
 
@@ -337,10 +334,10 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	// You may want to have these values selected in the datapath, and have the control logic just create selection signals
 	// E.g. for aluin2, you could have "assign aluin=regaluin2?regout2:dimm;" in the datapath, then set the "regaluin2" control signal here
 	always @(opcode1 or opcode2 or rdst or rsrc1 or rsrc2 or pcplus or pctarg or rregout1_A or rregout2_A or aluout or 
-	dmemout or dimm or  PC or opcode1_M or aluz or pcplus_M or flush or opcode1_A or regout1_M or BEQsig_D or BNEsig_D or
+	dmemout or dimm or  PC or aluz or pcplus_M or flush or regout1_M or BEQsig_D or BNEsig_D or
  	JMPsig_D or BEQsig_M or BNEsig_M or JMPsig_M ) begin
-    {aluin2,  alufunc,wrmem, wregno,wrreg,nextPC,immsig,flush,BEQsig_D,BNEsig_D,JMPsig_D}=
-    {{(DBITS){1'bX}},{4{1'bX}}, 1'b0, {3{1'bX}},1'b0 ,pcplus,1'b0,1'b0,1'b0,1'b0,1'b0};
+    {aluin2,  alufunc,wrmem, wregno,wrreg,nextPC,immsig,flush,BEQsig_D,BNEsig_D,JMPsig_D,LWsig_D}=
+    {{(DBITS){1'bX}},{4{1'bX}}, 1'b0, {3{1'bX}},1'b0 ,pcplus,1'b0,1'b0,1'b0,1'b0,1'b0,1'b0};
 	case(opcode1)
 	OP1_ALU:
 		{alufunc,wregno,wrreg}=
@@ -355,8 +352,8 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 		{alufunc,nextPC,BNEsig_D}=
 		{ALU_XOR,pctarg,1'b1};
 	OP1_LW:
-		{aluin2,alufunc,wregno,wrreg,immsig} =
-		{dimm,ALU_ADD,rsrc2,1'b1,1'b1};
+		{aluin2,alufunc,wregno,wrreg,immsig,LWsig_D} =
+		{dimm,ALU_ADD,rsrc2,1'b1,1'b1,1'b1};
 	OP1_SW:
 		{aluin2,alufunc,wrmem,immsig} =
 		{dimm,ALU_ADD,1'b1,1'b1};
