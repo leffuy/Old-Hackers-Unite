@@ -40,7 +40,7 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 
 	wire [(DBITS-1):0] inst=imemout;
 	wire [2:0] opcode1=inst[15:13];
-	reg [2:0] opcode1_A, opcode1_M;
+	reg [2:0] opcode1_A, opcode1_M, opcode1_W;
 
 	always @(posedge clk) begin
 		opcode1_A <= opcode1;
@@ -95,9 +95,33 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	wire [(IMMBITS-1):0] imm=inst[(IMMBITS-1): 0];
 	wire [(DBITS-1):0]   dimm={{(DBITS-IMMBITS){imm[IMMBITS-1]}},imm};
 	wire [(DBITS-1):0]   bimm={{(DBITS-IMMBITS-1){imm[IMMBITS-1]}},imm,1'b0};
-	reg immsig, immsig_A, flush, flushsig;
-	always @(posedge clk)
+
+	// signals
+	reg immsig, immsig_A, flush, flushsig, 
+		BEQsig_D, BNEsig_D,JMPsig_D,
+		BEQsig_A, BNEsig_A,JMPsig_A,
+		BEQsig_M, BNEsig_M,JMPsig_M;
+	always @(posedge clk) begin
 		immsig_A <= immsig;
+
+		BEQsig_A <= BEQsig_D;
+		BNEsig_A <= BNEsig_D;
+		JMPsig_A <= JMPsig_D;
+
+		BEQsig_M <= BEQsig_A;
+		BNEsig_M <= BNEsig_A;
+		JMPsig_M <= JMPsig_A;
+
+		if(flush) begin
+			BEQsig_A <= 1'b0;
+			BNEsig_A <= 1'b0;
+			JMPsig_A <= 1'b0;
+
+			BEQsig_M <= 1'b0;
+			BNEsig_M <= 1'b0;
+			JMPsig_M <= 1'b0;
+		end
+	end
 
 	wire [(DBITS-1):0] pctarg= pcplus+bimm;
 
@@ -105,12 +129,12 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	wire [2:0] rregno1=rsrc1, rregno2=rsrc2;
 	reg [2:0] rregno1_A, rregno2_A;
 	wire [(DBITS-1):0] regout1, regout2;
-	reg [(DBITS-1):0] rregout1, rregout2, regout1_A, regout2_A, regout1_M, regout2_M, jmptarg; 
+	reg [(DBITS-1):0] rregout1_A, rregout2_A, regout1_A, regout2_A, regout1_M, regout2_M, jmptarg; 
 	// These three are optimized-out "reg" (control logic uses an always-block)
 	// But wregno may come from rsrc2 or rdst fields (decided by control logic)
-	reg [2:0] wregno, wregno_A, wregno_M;
-	reg wrreg, wrreg_A, wrreg_M;
-	reg [(DBITS-1):0] wregval_M;
+	reg [2:0] wregno, wregno_A, wregno_M, wregno_W;
+	reg wrreg, wrreg_A, wrreg_M, wrreg_W;
+	reg [(DBITS-1):0] wregval_M, wregval_W;
 	RegFile #(.DBITS(DBITS),.ABITS(3),.MFILE("Regs.mif")) regFile(
 		.RADDR1(rregno1),.DOUT1(regout1),
 		.RADDR2(rregno2),.DOUT2(regout2),
@@ -119,15 +143,22 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	
 	always @(posedge clk) begin
 		wrreg_A <= wrreg;
+		wrreg_M <= wrreg_A;
+		wrreg_W <= wrreg_M;
+
 		wregno_A <= wregno;
 		wregno_M <= wregno_A;
-		wrreg_M <= wrreg_A;
+		wregno_W <= wregno_M;
+
+		wregno_W <= wregno_M;
+
+		wregval_W <= wregval_M;
 
 		rregno1_A <= rregno1;
 		rregno2_A <= rregno2;
 
-		regout1_M <= rregout1;
-		regout2_M <= rregout2;
+		regout1_M <= rregout1_A;
+		regout2_M <= rregout2_A;
 
 		if(flush) begin
 			wrreg_A <= 1'b0;
@@ -144,17 +175,32 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 			if(rregno2 == wregno_M)
 				regout2_A <= wregval_M;
 		end
+		/*else if(wrreg_W) begin
+			if(rregno1 == wregno_W)
+				regout1_A <= wregval_W;
+			if(rregno2 == wregno_W)
+				regout2_A <= wregval_W;
+		end
+		*/
 	end
 
-	always @(rregno1_A or rregno2_A or rregout1 or rregout2 or regout1 or regout2 or wrreg_M or wregno_M or wregval_M or regout1_A or regout2_A) begin
-		rregout1 = regout1_A;
-		rregout2 = regout2_A;
+	always @(rregno1_A or rregno2_A or rregout1_A or rregout2_A or regout1 or regout2 or wrreg_M or wregno_M or wregval_M or regout1_A or regout2_A) begin
+		rregout1_A = regout1_A;
+		rregout2_A = regout2_A;
 		if(wrreg_M) begin
 			if(rregno1_A == wregno_M)
-				rregout1 = wregval_M;
+				rregout1_A = wregval_M;
 			if(rregno2_A == wregno_M)
-				rregout2 = wregval_M;
+				rregout2_A = wregval_M;
 		end
+		/*
+		else if(wrreg_W) begin
+			if(rregno1_A == wregno_W)
+				rregout1_A <= wregval_W;
+			if(rregno2_A == wregno_W)
+				rregout2_A <= wregval_W;
+		end
+		*/
 	end
 /*	
 	always @(rregno1 or regout1 or regout2 or rregno2 or wrreg_A or wregno_A or opcode1_A or aluout or jmptarg or wrreg_M or wregno_M or wregval_M) begin
@@ -197,7 +243,7 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 		.CMD_NAND(ALU_NAND),
 		.CMD_NOR( ALU_NOR),
 		.CMD_NXOR(ALU_NXOR)
-	) alu(.A(rregout1),.B(immsig_A?aluin2_A:rregout2),.CTL(alufunc_A),.OUT(aluout));
+	) alu(.A(rregout1_A),.B(immsig_A?aluin2_A:rregout2_A),.CTL(alufunc_A),.OUT(aluout));
 
 	always @(posedge clk)
 		aluout_M <= aluout;
@@ -255,7 +301,7 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 		//LedROut[2:0] = wregno_M;
 		//LedROut[5:3] = rregno1_A;
 		//LedROut[8:6] = rregno2_A;
-		//LedROut = rregout2;
+		//LedROut = rregout2_A;
 		//LedROut = aluin2_A;
 		LedROut = aluout;
 		//LedROut = aluout[8:0];
@@ -290,10 +336,11 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	// This is the entire decoding logic. But it generates some values (aluin2, wregval, nextPC) in addition to control signals
 	// You may want to have these values selected in the datapath, and have the control logic just create selection signals
 	// E.g. for aluin2, you could have "assign aluin=regaluin2?regout2:dimm;" in the datapath, then set the "regaluin2" control signal here
-	always @(opcode1 or opcode2 or rdst or rsrc1 or rsrc2 or pcplus or pctarg or rregout1 or rregout2 or aluout or 
-	dmemout or dimm or  PC or opcode1_M or aluz or pcplus_M or flush or opcode1_A or regout1_M) begin
-    {aluin2,  alufunc,wrmem, wregno,wrreg,nextPC,immsig,flush}=
-    {{(DBITS){1'bX}},{4{1'bX}}, 1'b0, {3{1'bX}},1'b0 ,pcplus,1'b0,1'b0};
+	always @(opcode1 or opcode2 or rdst or rsrc1 or rsrc2 or pcplus or pctarg or rregout1_A or rregout2_A or aluout or 
+	dmemout or dimm or  PC or opcode1_M or aluz or pcplus_M or flush or opcode1_A or regout1_M or BEQsig_D or BNEsig_D or
+ 	JMPsig_D or BEQsig_M or BNEsig_M or JMPsig_M ) begin
+    {aluin2,  alufunc,wrmem, wregno,wrreg,nextPC,immsig,flush,BEQsig_D,BNEsig_D,JMPsig_D}=
+    {{(DBITS){1'bX}},{4{1'bX}}, 1'b0, {3{1'bX}},1'b0 ,pcplus,1'b0,1'b0,1'b0,1'b0,1'b0};
 	case(opcode1)
 	OP1_ALU:
 		{alufunc,wregno,wrreg}=
@@ -302,11 +349,11 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 		{aluin2,alufunc,wregno,wrreg,immsig} =
 		{dimm,ALU_ADD,rsrc2,1'b1,1'b1};
 	OP1_BEQ:
-		{alufunc,nextPC}=
-		{ALU_XOR,pctarg};
+		{alufunc,nextPC,BEQsig_D}=
+		{ALU_XOR,pctarg,1'b1};
 	OP1_BNE:
-		{alufunc,nextPC}=
-		{ALU_XOR,pctarg};
+		{alufunc,nextPC,BNEsig_D}=
+		{ALU_XOR,pctarg,1'b1};
 	OP1_LW:
 		{aluin2,alufunc,wregno,wrreg,immsig} =
 		{dimm,ALU_ADD,rsrc2,1'b1,1'b1};
@@ -314,28 +361,28 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 		{aluin2,alufunc,wrmem,immsig} =
 		{dimm,ALU_ADD,1'b1,1'b1};
 	OP1_JMP: begin
-		{wregno,wrreg}=
-		{rdst,1'b1};
+		{wregno,wrreg,JMPsig_D}=
+		{rdst,1'b1,1'b1};
 	end
 	default:
 	  ;
 	endcase
 	// Branch Correction
 	if(aluz) begin
-		if( opcode1_M == OP1_BNE) begin
+		if( BNEsig_M ) begin
 			nextPC = pcplus_M;
 			flush = 1'b1;
 		end
 	end
 	else begin
-		if( opcode1_M == OP1_BEQ) begin
+		if( BEQsig_M ) begin
 			nextPC = pcplus_M;
 			flush = 1'b1;
 		end
 	end
-	if(opcode1_M == OP1_JMP) begin
-		flush = 1'b1;
+	if( JMPsig_M ) begin
 		nextPC = regout1_M;
+		flush = 1'b1;
 	end
 
   end
