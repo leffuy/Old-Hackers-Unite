@@ -28,10 +28,10 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 		if(lock)
 			PC <= nextPC;
 	wire [(DBITS-1):0] pcplus=PC+16'd2;
-	reg [(DBITS-1):0] st2pcplus, bpcplus;
+	reg [(DBITS-1):0] pcplus_A, pcplus_M;
 	always @(posedge clk) begin
-		st2pcplus <= pcplus;
-		bpcplus <= st2pcplus;
+		pcplus_A <= pcplus;
+		pcplus_M <= pcplus_A;
 	end
 
 	// These are connected to the memory module
@@ -40,14 +40,14 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 
 	wire [(DBITS-1):0] inst=imemout;
 	wire [2:0] opcode1=inst[15:13];
-	reg [2:0] st2opcode1, bopcode1;
+	reg [2:0] opcode1_A, opcode1_M;
 
 	always @(posedge clk) begin
-		st2opcode1 <= opcode1;
-		bopcode1 <= st2opcode1;
+		opcode1_A <= opcode1;
+		opcode1_M <= opcode1_A;
 		if(flush) begin
-			st2opcode1 <= 3'b111;
-			bopcode1 <= 3'b111;
+			opcode1_A <= 3'b111;
+			opcode1_M <= 3'b111;
 		end
 	end
 
@@ -95,93 +95,93 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	wire [(IMMBITS-1):0] imm=inst[(IMMBITS-1): 0];
 	wire [(DBITS-1):0]   dimm={{(DBITS-IMMBITS){imm[IMMBITS-1]}},imm};
 	wire [(DBITS-1):0]   bimm={{(DBITS-IMMBITS-1){imm[IMMBITS-1]}},imm,1'b0};
-	reg immsig, st2immsig, flush, flushsig;
+	reg immsig, immsig_A, flush, flushsig;
 	always @(posedge clk)
-		st2immsig <= immsig;
+		immsig_A <= immsig;
 
 	wire [(DBITS-1):0] pctarg= pcplus+bimm;
 
 	// The rregno1 and rregno2 always come from rsrc1 and rsrc2 field in the instruction word
 	wire [2:0] rregno1=rsrc1, rregno2=rsrc2;
-	reg [2:0] st2rregno1, st2rregno2;
+	reg [2:0] rregno1_A, rregno2_A;
 	wire [(DBITS-1):0] regout1, regout2;
-	reg [(DBITS-1):0] rregout1, rregout2, st2regout1, st2regout2, bregout1, bregout2, jmptarg; 
+	reg [(DBITS-1):0] rregout1, rregout2, regout1_A, regout2_A, regout1_M, regout2_M, jmptarg; 
 	// These three are optimized-out "reg" (control logic uses an always-block)
 	// But wregno may come from rsrc2 or rdst fields (decided by control logic)
-	reg [2:0] wregno, st2wregno, bwregno;
-	reg wrreg, st2wrreg, bwrreg;
-	reg [(DBITS-1):0] bwregval;
+	reg [2:0] wregno, wregno_A, wregno_M;
+	reg wrreg, wrreg_A, wrreg_M;
+	reg [(DBITS-1):0] wregval_M;
 	RegFile #(.DBITS(DBITS),.ABITS(3),.MFILE("Regs.mif")) regFile(
 		.RADDR1(rregno1),.DOUT1(regout1),
 		.RADDR2(rregno2),.DOUT2(regout2),
-		.WADDR(bwregno),.DIN(bwregval),
-		.WE(bwrreg),.CLK(clk));
+		.WADDR(wregno_M),.DIN(wregval_M),
+		.WE(wrreg_M),.CLK(clk));
 	
 	always @(posedge clk) begin
-		st2wrreg <= wrreg;
-		st2wregno <= wregno;
-		bwregno <= st2wregno;
-		bwrreg <= st2wrreg;
+		wrreg_A <= wrreg;
+		wregno_A <= wregno;
+		wregno_M <= wregno_A;
+		wrreg_M <= wrreg_A;
 
-		st2rregno1 <= rregno1;
-		st2rregno2 <= rregno2;
+		rregno1_A <= rregno1;
+		rregno2_A <= rregno2;
 
-		bregout1 <= rregout1;
-		bregout2 <= rregout2;
+		regout1_M <= rregout1;
+		regout2_M <= rregout2;
 
 		if(flush) begin
-			st2wrreg <= 1'b0;
-			bwrreg <= 1'b0;
+			wrreg_A <= 1'b0;
+			wrreg_M <= 1'b0;
 		end
 	end
 	
 	always @(posedge clk) begin
-		st2regout1 <= regout1;
-		st2regout2 <= regout2;
-		if(bwrreg) begin
-			if(rregno1 == bwregno)
-				st2regout1 <= bwregval;
-			if(rregno2 == bwregno)
-				st2regout2 <= bwregval;
+		regout1_A <= regout1;
+		regout2_A <= regout2;
+		if(wrreg_M) begin
+			if(rregno1 == wregno_M)
+				regout1_A <= wregval_M;
+			if(rregno2 == wregno_M)
+				regout2_A <= wregval_M;
 		end
 	end
 
-	always @(st2rregno1 or st2rregno2 or rregout1 or rregout2 or regout1 or regout2 or bwrreg or bwregno or bwregval or st2regout1 or st2regout2) begin
-		rregout1 = st2regout1;
-		rregout2 = st2regout2;
-		if(bwrreg) begin
-			if(st2rregno1 == bwregno)
-				rregout1 = bwregval;
-			if(st2rregno2 == bwregno)
-				rregout2 = bwregval;
+	always @(rregno1_A or rregno2_A or rregout1 or rregout2 or regout1 or regout2 or wrreg_M or wregno_M or wregval_M or regout1_A or regout2_A) begin
+		rregout1 = regout1_A;
+		rregout2 = regout2_A;
+		if(wrreg_M) begin
+			if(rregno1_A == wregno_M)
+				rregout1 = wregval_M;
+			if(rregno2_A == wregno_M)
+				rregout2 = wregval_M;
 		end
 	end
 /*	
-	always @(rregno1 or regout1 or regout2 or rregno2 or st2wrreg or st2wregno or st2opcode1 or aluout or jmptarg or bwrreg or bwregno or bwregval) begin
+	always @(rregno1 or regout1 or regout2 or rregno2 or wrreg_A or wregno_A or opcode1_A or aluout or jmptarg or wrreg_M or wregno_M or wregval_M) begin
 		jmptarg = regout1;
-		if(bwrreg) begin
-			if(rregno1 == bwregno)
-				jmptarg = bwregval;
+		if(wrreg_M) begin
+			if(rregno1 == wregno_M)
+				jmptarg = wregval_M;
 		end
-		if(st2wrreg) begin
-			if(rregno1 == st2wregno)
+		if(wrreg_A) begin
+			if(rregno1 == wregno_A)
 				jmptarg = aluout;
 		end
 	end
 */
 	reg aluz;
-	always @(baluout or aluz)
-		aluz = baluout == 16'h0000;
+	always @(aluout_M or aluz)
+		aluz = aluout_M == 16'h0000;
 	
 	// The ALU unit
-	reg [(DBITS-1):0]  aluin1, aluin2, st2aluin2, baluout;
+	reg [(DBITS-1):0]  aluin1, aluin2, aluin2_A, aluout_M;
 	wire [(DBITS-1):0] aluout;
 	// Decided by control logic
-	reg [3:0] alufunc, st2alufunc;
+	reg [3:0] alufunc, alufunc_A;
 	
 	always @(posedge clk) begin
-		st2aluin2 <= aluin2;
-		st2alufunc <= alufunc;
+		aluin2_A <= aluin2;
+		alufunc_A <= alufunc;
 	end
 	
 	ALU #(
@@ -197,17 +197,17 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 		.CMD_NAND(ALU_NAND),
 		.CMD_NOR( ALU_NOR),
 		.CMD_NXOR(ALU_NXOR)
-	) alu(.A(rregout1),.B(st2immsig?st2aluin2:rregout2),.CTL(st2alufunc),.OUT(aluout));
+	) alu(.A(rregout1),.B(immsig_A?aluin2_A:rregout2),.CTL(alufunc_A),.OUT(aluout));
 
 	always @(posedge clk)
-		baluout <= aluout;
+		aluout_M <= aluout;
 
-	always @(bwrreg or bwregval or baluout or bopcode1 or dmemout or bpcplus) begin
-		bwregval = baluout;
-		if(bopcode1 == OP1_LW)		// TODO: think of a brilliant way to remove the need for bopcode1
-			bwregval = dmemout;
-		else if(bopcode1 == OP1_JMP)
-			bwregval = bpcplus;
+	always @(wrreg_M or wregval_M or aluout_M or opcode1_M or dmemout or pcplus_M) begin
+		wregval_M = aluout_M;
+		if(opcode1_M == OP1_LW)		// TODO: think of a brilliant way to remove the need for opcode1_M
+			wregval_M = dmemout;
+		else if(opcode1_M == OP1_JMP)
+			wregval_M = pcplus_M;
 	end
 
 
@@ -217,11 +217,11 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
   reg wrmem;
   reg [(DBITS-1):0] dmemaddr, dmemin;
   // Warning: The file you submit for Project 1 must not use negedge for anything
-	always @(dmemaddr or baluout)
-		dmemaddr = baluout;
+	always @(dmemaddr or aluout_M)
+		dmemaddr = aluout_M;
 
-	always @(dmemin or bregout2)
-		dmemin = bregout2;
+	always @(dmemin or regout2_M)
+		dmemin = regout2_M;
 	
   reg [(DBITS-1):0] HexOut;
   SevenSeg ss3(.OUT(digit3),.IN(HexOut[15:12]));
@@ -239,7 +239,7 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
   reg [9:0] LedROut;
   assign ledred=LedROut;
 	always @(posedge clk) begin
-		if(bwrmem) begin
+		if(wrmem_M) begin
 			// Insert code to store HexOut, LedROut, and LedGOut from dmemin when appropriate
 			if(dmemaddr == 16'hFFF8)
 				HexOut <= dmemin;
@@ -252,23 +252,23 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	
 	/*
 	always @(posedge clk) begin
-		//LedROut[2:0] = bwregno;
-		//LedROut[5:3] = st2rregno1;
-		//LedROut[8:6] = st2rregno2;
+		//LedROut[2:0] = wregno_M;
+		//LedROut[5:3] = rregno1_A;
+		//LedROut[8:6] = rregno2_A;
 		//LedROut = rregout2;
-		//LedROut = st2aluin2;
+		//LedROut = aluin2_A;
 		LedROut = aluout;
 		//LedROut = aluout[8:0];
 	end
 	*/
 
-	reg st2wrmem, bwrmem;
+	reg wrmem_A, wrmem_M;
 	always @(posedge clk) begin
-		st2wrmem <= wrmem;
-		bwrmem <= st2wrmem;
+		wrmem_A <= wrmem;
+		wrmem_M <= wrmem_A;
 		if(flush) begin
-			st2wrmem <= 1'b0;
-			bwrmem <= 1'b0;
+			wrmem_A <= 1'b0;
+			wrmem_M <= 1'b0;
 		end
 	end
 
@@ -279,7 +279,7 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
     .ADDR1(dmemaddr[12:1]),.DOUT1(MemVal),
     .ADDR2(imemaddr[12:1]),.DOUT2(imemout),
     .DIN(dmemin),
-    .WE(bwrmem&&MemEnable),.CLK(clk));
+    .WE(wrmem_M&&MemEnable),.CLK(clk));
 	
   // Insert code to output MemVal, keys, or switches according to the dmemaddr
   wire [(DBITS-1):0] dmemout=MemEnable?MemVal:
@@ -291,7 +291,7 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	// You may want to have these values selected in the datapath, and have the control logic just create selection signals
 	// E.g. for aluin2, you could have "assign aluin=regaluin2?regout2:dimm;" in the datapath, then set the "regaluin2" control signal here
 	always @(opcode1 or opcode2 or rdst or rsrc1 or rsrc2 or pcplus or pctarg or rregout1 or rregout2 or aluout or 
-	dmemout or dimm or  PC or bopcode1 or aluz or bpcplus or flush or st2opcode1 or bregout1) begin
+	dmemout or dimm or  PC or opcode1_M or aluz or pcplus_M or flush or opcode1_A or regout1_M) begin
     {aluin2,  alufunc,wrmem, wregno,wrreg,nextPC,immsig,flush}=
     {{(DBITS){1'bX}},{4{1'bX}}, 1'b0, {3{1'bX}},1'b0 ,pcplus,1'b0,1'b0};
 	case(opcode1)
@@ -322,20 +322,20 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	endcase
 	// Branch Correction
 	if(aluz) begin
-		if( bopcode1 == OP1_BNE) begin
-			nextPC = bpcplus;
+		if( opcode1_M == OP1_BNE) begin
+			nextPC = pcplus_M;
 			flush = 1'b1;
 		end
 	end
 	else begin
-		if( bopcode1 == OP1_BEQ) begin
-			nextPC = bpcplus;
+		if( opcode1_M == OP1_BEQ) begin
+			nextPC = pcplus_M;
 			flush = 1'b1;
 		end
 	end
-	if(bopcode1 == OP1_JMP) begin
+	if(opcode1_M == OP1_JMP) begin
 		flush = 1'b1;
-		nextPC = bregout1;
+		nextPC = regout1_M;
 	end
 
   end
