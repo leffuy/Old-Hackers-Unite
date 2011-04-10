@@ -116,7 +116,7 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	wire [(DBITS-1):0]   bimm={{(DBITS-IMMBITS-1){imm[IMMBITS-1]}},imm,1'b0};
 
 	// signals
-	reg immsig, immsig_A, flush, flushsig, 
+	reg immsig, immsig_A, flush, flushsig,
 		BEQsig_D, BNEsig_D,JMPsig_D,
 		BEQsig_A, BNEsig_A,JMPsig_A,
 		BEQsig_M, BNEsig_M,JMPsig_M,
@@ -151,9 +151,10 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 
 	wire [(DBITS-1):0] pctarg= pcplus+bimm;
 
-	// The rregno1 and rregno2 always come from rsrc1 and rsrc2 field in the instruction word
-	wire [2:0] rregno1=rsrc1, rregno2=rsrc2;
-	reg [2:0] rregno1_A, rregno2_A, rregno1_M;
+	// The rregno2 always comes from rsrc2 field in the instruction word
+	wire [2:0] rregno2=rsrc2;
+	// rregno1 selects between RA and rsrc1 based on if RETI or not
+	reg [2:0] rregno1, rregno1_A, rregno2_A, rregno1_M;
 	wire [(DBITS-1):0] regout1, regout2;
 	reg [(DBITS-1):0] fregout1_D, fregout2_D, fregout1_A, fregout2_A, regout1_A, regout2_A, regout1_M, regout2_M, jmptarg; 
 	// These three are optimized-out "reg" (control logic uses an always-block)
@@ -382,11 +383,11 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	// This is the entire decoding logic. But it generates some values (aluin2, wregval, nextPC) in addition to control signals
 	// You may want to have these values selected in the datapath, and have the control logic just create selection signals
 	// E.g. for aluin2, you could have "assign aluin=regaluin2?regout2:dimm;" in the datapath, then set the "regaluin2" control signal here
-	always @(opcode1 or opcode2 or rdst or rsrc1 or rsrc2 or pcplus or pctarg or fregout1_A or fregout2_A or  
+	always @(opcode1 or opcode2 or rdst or rsrc1 or rsrc2 or pcplus or pctarg or fregout1_A or fregout2_A or rregno1 or rsrc1 or
 	dmemout or dimm or  PC or aluz or pcplus_M or flush or regout1_M or BEQsig_D or BNEsig_D or
  	JMPsig_D or BEQsig_M or BNEsig_M or JMPsig_M ) begin
-    {aluin2,  alufunc,wrmem, wregno,wrreg,nextPC,immsig,flush,BEQsig_D,BNEsig_D,JMPsig_D,LWsig_D}=
-    {{(DBITS){1'bX}},{4{1'bX}}, 1'b0, {3{1'bX}},1'b0 ,pcplus,1'b0,1'b0,1'b0,1'b0,1'b0,1'b0};
+    {rregno1, aluin2,          alufunc,  wrmem, wregno,    wrreg, nextPC,immsig,flush,BEQsig_D,BNEsig_D,JMPsig_D,LWsig_D}=
+    {rsrc1,   {(DBITS){1'bX}},{4{1'bX}}, 1'b0,  {3{1'bX}}, 1'b0,  pcplus,1'b0,  1'b0, 1'b0,    1'b0,    1'b0,    1'b0};
 	case(opcode1)
 	OP1_ALU:
 		{alufunc,wregno,wrreg}=
@@ -412,9 +413,8 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 				{wregno,wrreg,JMPsig_D}=
 				{rdst,1'b1,1'b1};
 			JMP_RETI:
-				//{rregno2,nextPC}=
-				//{3'b101,regout2};
-				;
+				{rregno1,nextPC}=
+				{3'b101,fregout1_D};
 
 			JMP_RSR:;
 
