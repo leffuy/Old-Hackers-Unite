@@ -80,6 +80,16 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 		ALU_NAND = ALU_OP2_NAND,
 		ALU_NOR  = ALU_OP2_NOR,
 		ALU_NXOR = ALU_OP2_NXOR;
+	// opcode2 for JMP opcode1
+	parameter
+		SYS_OP2_RETI = 4'b0001,
+		SYS_OP2_RSR  = 4'b0010,
+		SYS_OP2_WSR  = 4'b0011;
+	// shorter names for the above
+	parameter
+		SYS_RETI = SYS_OP2_RETI,
+		SYS_RSR = SYS_OP2_RSR,
+		SYS_WSR = SYS_OP2_WSR;
 	 
 
 	wire [2:0] rsrc1  =inst[12:10];
