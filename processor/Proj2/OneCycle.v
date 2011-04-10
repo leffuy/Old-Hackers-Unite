@@ -153,6 +153,23 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 		.RADDR2(rregno2),.DOUT2(regout2),
 		.WADDR(wregno_M),.DIN(wregval_M),
 		.WE(wrreg_M),.CLK(clk));
+
+	// System registers
+	reg IE, OIE, CM, OM;
+	reg [(DBITS-1):0] SIH, SRA, SII, SR0, SR1;
+
+	reg [(DBITS-1):0] sregout_M;
+	always @(rregno1_M or IE or OIE or CM or OM or SIH or SRA or SII or SR0 or SR1) begin
+		case(rregno1_M)
+			SREG_SCS: sregout_M={{(DBITS-4){1'b0}},OM,CM,OIE,IE};
+			SREG_SIH: sregout_M=SIH;
+			SREG_SRA: sregout_M=SRA;
+			SREG_SII: sregout_M=SII;
+			SREG_SR0: sregout_M=SR0;
+			SREG_SR1: sregout_M=SR1;
+			default: sregout_M = 16'hFAFA;
+		endcase
+	end
 	
 	always @(posedge clk) begin
 		wrreg_A <= wrreg;
