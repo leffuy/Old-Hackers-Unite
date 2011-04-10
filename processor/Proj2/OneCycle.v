@@ -155,7 +155,7 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	wire [2:0] rregno1=rsrc1, rregno2=rsrc2;
 	reg [2:0] rregno1_A, rregno2_A, rregno1_M;
 	wire [(DBITS-1):0] regout1, regout2;
-	reg [(DBITS-1):0] rregout1_A, rregout2_A, regout1_A, regout2_A, regout1_M, regout2_M, jmptarg; 
+	reg [(DBITS-1):0] fregout1_D, fregout2_D, fregout1_A, fregout2_A, regout1_A, regout2_A, regout1_M, regout2_M, jmptarg; 
 	// These three are optimized-out "reg" (control logic uses an always-block)
 	// But wregno may come from rsrc2 or rdst fields (decided by control logic)
 	reg [2:0] wregno, wregno_A, wregno_M, wregno_W;
@@ -200,8 +200,11 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 		rregno1_A <= rregno1;
 		rregno2_A <= rregno2;
 
-		regout1_M <= rregout1_A;
-		regout2_M <= rregout2_A;
+		regout1_A <= fregout1_D;
+		regout2_A <= fregout2_D;
+
+		regout1_M <= fregout1_A;
+		regout2_M <= fregout2_A;
 
 		rregno1_M <= rregno1_A;
 
@@ -211,37 +214,38 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 		end
 	end
 	
-	always @(posedge clk) begin
-		regout1_A <= regout1;
-		regout2_A <= regout2;
+	always @(rregno1 or rregno2 or fregout1_D or fregout2_D or regout1 or regout2 or wrreg_M or wregno_M or wregval_M 
+		or wrreg_W or wregno_W or wregval_W) begin
+		fregout1_D = regout1;
+		fregout2_D = regout2;
 		if(wrreg_M) begin
 			if(rregno1 == wregno_M)
-				regout1_A <= wregval_M;
+				fregout1_D = wregval_M;
 			if(rregno2 == wregno_M)
-				regout2_A <= wregval_M;
+				fregout2_D = wregval_M;
 		end
 		if(wrreg_W) begin
 			if(rregno1 == wregno_W)
-				regout1_A <= wregval_W;
+				fregout1_D = wregval_W;
 			if(rregno2 == wregno_W)
-				regout2_A <= wregval_W;
+				fregout2_D = wregval_W;
 		end
 	end
-	always @(rregno1_A or rregno2_A or rregout1_A or rregout2_A or regout1 or regout2 or wrreg_M or wregno_M or wregval_M 
+	always @(rregno1_A or rregno2_A or fregout1_A or fregout2_A or wrreg_M or wregno_M or wregval_M 
 		or wrreg_W or wregno_W or wregval_W or regout1_A or regout2_A) begin
-		rregout1_A = regout1_A;
-		rregout2_A = regout2_A;
+		fregout1_A = regout1_A;
+		fregout2_A = regout2_A;
 		if(wrreg_M) begin
 			if(rregno1_A == wregno_M)
-				rregout1_A = wregval_M;
+				fregout1_A = wregval_M;
 			if(rregno2_A == wregno_M)
-				rregout2_A = wregval_M;
+				fregout2_A = wregval_M;
 		end
 		if(wrreg_W) begin
 			if(rregno1_A == wregno_W)
-				rregout1_A <= wregval_W;
+				fregout1_A <= wregval_W;
 			if(rregno2_A == wregno_W)
-				rregout2_A <= wregval_W;
+				fregout2_A <= wregval_W;
 		end
 	end
 /*	
@@ -285,7 +289,7 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 		.CMD_NAND(ALU_NAND),
 		.CMD_NOR( ALU_NOR),
 		.CMD_NXOR(ALU_NXOR)
-	) alu(.A(rregout1_A),.B(immsig_A?aluin2_A:rregout2_A),.CTL(alufunc_A),.OUT(aluout_A));
+	) alu(.A(fregout1_A),.B(immsig_A?aluin2_A:fregout2_A),.CTL(alufunc_A),.OUT(aluout_A));
 
 	always @(posedge clk)
 		aluout_M <= aluout_A;
@@ -343,7 +347,7 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 		//LedROut[2:0] = wregno_M;
 		//LedROut[5:3] = rregno1_A;
 		//LedROut[8:6] = rregno2_A;
-		//LedROut = rregout2_A;
+		//LedROut = fregout2_A;
 		//LedROut = aluin2_A;
 		LedROut = aluout;
 		//LedROut = aluout[8:0];
@@ -378,7 +382,7 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	// This is the entire decoding logic. But it generates some values (aluin2, wregval, nextPC) in addition to control signals
 	// You may want to have these values selected in the datapath, and have the control logic just create selection signals
 	// E.g. for aluin2, you could have "assign aluin=regaluin2?regout2:dimm;" in the datapath, then set the "regaluin2" control signal here
-	always @(opcode1 or opcode2 or rdst or rsrc1 or rsrc2 or pcplus or pctarg or rregout1_A or rregout2_A or  
+	always @(opcode1 or opcode2 or rdst or rsrc1 or rsrc2 or pcplus or pctarg or fregout1_A or fregout2_A or  
 	dmemout or dimm or  PC or aluz or pcplus_M or flush or regout1_M or BEQsig_D or BNEsig_D or
  	JMPsig_D or BEQsig_M or BNEsig_M or JMPsig_M ) begin
     {aluin2,  alufunc,wrmem, wregno,wrreg,nextPC,immsig,flush,BEQsig_D,BNEsig_D,JMPsig_D,LWsig_D}=
@@ -407,7 +411,10 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 			JMP_JRL:
 				{wregno,wrreg,JMPsig_D}=
 				{rdst,1'b1,1'b1};
-			JMP_RETI:;
+			JMP_RETI:
+				//{rregno2,nextPC}=
+				//{3'b101,regout2};
+				;
 
 			JMP_RSR:;
 
