@@ -31,7 +31,7 @@ module ALU(A,B,CTL,OUT);
     end
     sum = (x+y);
     addsubout = sum[BITS:1];
-    cmpout[0] = addsubout[(BITS-1)];
+    cmpout = {{(BITS-1){1'b0}},addsubout[(BITS-1)]};
 
     case(CTL)
       CMD_AND:  logout = A&B;

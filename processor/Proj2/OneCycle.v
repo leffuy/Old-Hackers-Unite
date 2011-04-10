@@ -24,9 +24,15 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	parameter DBITS=16;
 
 	reg [(DBITS-1):0] PC=16'h200,nextPC;
-	always @(posedge clk)
-		if(lock)
+
+	reg init = 1'b0;
+	always @(posedge clk) if(lock) init<=1'b1;
+
+	always @(posedge clk) begin
+		if(lock && init)
 			PC <= nextPC;
+	end
+
 	wire [(DBITS-1):0] pcplus=PC+16'd2;
 	reg [(DBITS-1):0] pcplus_A, pcplus_M;
 	always @(posedge clk) begin
@@ -172,15 +178,15 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 			if(rregno2 == wregno_M)
 				regout2_A <= wregval_M;
 		end
-		/*else if(wrreg_W) begin
+		if(wrreg_W) begin
 			if(rregno1 == wregno_W)
 				regout1_A <= wregval_W;
 			if(rregno2 == wregno_W)
 				regout2_A <= wregval_W;
 		end
-		*/
 	end
-	always @(rregno1_A or rregno2_A or rregout1_A or rregout2_A or regout1 or regout2 or wrreg_M or wregno_M or wregval_M or regout1_A or regout2_A) begin
+	always @(rregno1_A or rregno2_A or rregout1_A or rregout2_A or regout1 or regout2 or wrreg_M or wregno_M or wregval_M 
+		or wrreg_W or wregno_W or wregval_W or regout1_A or regout2_A) begin
 		rregout1_A = regout1_A;
 		rregout2_A = regout2_A;
 		if(wrreg_M) begin
@@ -189,14 +195,12 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 			if(rregno2_A == wregno_M)
 				rregout2_A = wregval_M;
 		end
-		/*
-		else if(wrreg_W) begin
+		if(wrreg_W) begin
 			if(rregno1_A == wregno_W)
 				rregout1_A <= wregval_W;
 			if(rregno2_A == wregno_W)
 				rregout2_A <= wregval_W;
 		end
-		*/
 	end
 /*	
 	always @(rregno1 or regout1 or regout2 or rregno2 or wrreg_A or wregno_A or opcode1_A or aluout or jmptarg or wrreg_M or wregno_M or wregval_M) begin
@@ -363,6 +367,7 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	default:
 	  ;
 	endcase
+
 	// Branch Correction
 	if(aluz) begin
 		if( BNEsig_M ) begin
