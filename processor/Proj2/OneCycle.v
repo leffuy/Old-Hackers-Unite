@@ -82,14 +82,27 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 		ALU_NXOR = ALU_OP2_NXOR;
 	// opcode2 for JMP opcode1
 	parameter
-		SYS_OP2_RETI = 4'b0001,
-		SYS_OP2_RSR  = 4'b0010,
-		SYS_OP2_WSR  = 4'b0011;
+		JMP_OP2_JRL  = 4'b0000,
+		JMP_OP2_RETI = 4'b0001,
+		JMP_OP2_RSR  = 4'b0010,
+		JMP_OP2_WSR  = 4'b0011;
 	// shorter names for the above
 	parameter
-		SYS_RETI = SYS_OP2_RETI,
-		SYS_RSR = SYS_OP2_RSR,
-		SYS_WSR = SYS_OP2_WSR;
+		JMP_JRL  = JMP_OP2_JRL,
+		JMP_RETI = JMP_OP2_RETI,
+		JMP_RSR  = JMP_OP2_RSR,
+		JMP_WSR  = JMP_OP2_WSR;
+
+	// names for system register numbers
+	parameter
+		SREG_SCS  =  3'b000,
+		SREG_SIH  =  3'b001,
+		SREG_SRA  =  3'b010,
+		SREG_SII  =  3'b011,
+		SREG_RES1 =  3'b100,
+		SREG_RES2 =  3'b101,
+		SREG_SR0  =  3'b110,
+		SREG_SR1  =  3'b111;
 	 
 
 	wire [2:0] rsrc1  =inst[12:10];
@@ -140,7 +153,7 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 
 	// The rregno1 and rregno2 always come from rsrc1 and rsrc2 field in the instruction word
 	wire [2:0] rregno1=rsrc1, rregno2=rsrc2;
-	reg [2:0] rregno1_A, rregno2_A;
+	reg [2:0] rregno1_A, rregno2_A, rregno1_M;
 	wire [(DBITS-1):0] regout1, regout2;
 	reg [(DBITS-1):0] rregout1_A, rregout2_A, regout1_A, regout2_A, regout1_M, regout2_M, jmptarg; 
 	// These three are optimized-out "reg" (control logic uses an always-block)
@@ -189,6 +202,8 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 
 		regout1_M <= rregout1_A;
 		regout2_M <= rregout2_A;
+
+		rregno1_M <= rregno1_A;
 
 		if(flush) begin
 			wrreg_A <= 1'b0;
@@ -387,10 +402,18 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	OP1_SW:
 		{aluin2,alufunc,wrmem,immsig} =
 		{dimm,ALU_ADD,1'b1,1'b1};
-	OP1_JMP: begin
-		{wregno,wrreg,JMPsig_D}=
-		{rdst,1'b1,1'b1};
-	end
+	OP1_JMP: 
+		case(opcode2)
+			JMP_JRL:
+				{wregno,wrreg,JMPsig_D}=
+				{rdst,1'b1,1'b1};
+			JMP_RETI:;
+
+			JMP_RSR:;
+
+			JMP_WSR:;
+			default:;
+		endcase
 	default:
 	  ;
 	endcase
