@@ -51,7 +51,7 @@ int main(int argc, char* argv[]) {
 
 	// file is the file to read in
 	// out is the file to save to
-	std::string file, out;
+	std::string file, out="";
 
 	// Mess for reading CLI options using boost::program_options
 	{
@@ -76,14 +76,13 @@ int main(int argc, char* argv[]) {
 		if( vm.count("file") )
 			file=vm["file"].as<std::string>();
 		else {
-			std::cout << "No file to read! See --help.\n";
+			std::cout << "No file to read! See --help\n";
 			return 1;
 		}
 		if( vm.count("out") )
 			out=vm["out"].as<std::string>();
 		else {
-			std::cout << "No file to save to! See --help.\n";
-			return 1;
+			std::cout << "Warning: No file specified to save to, see --help\n";
 		}
 	}
 
@@ -115,7 +114,8 @@ int main(int argc, char* argv[]) {
 	
 	secondpass(parsed);
 
-	writefile(out);
+	if(out.size() > 0)
+		writefile(out);
 	return 0;
 }
 
@@ -383,6 +383,9 @@ void secondpass(std::stringstream& is) {
 							instr = getValue("NOR");
 						}
 					}
+					if(token.compare("RETI") == 0)
+						goto reti;
+
 					
 					if ( (instr>>13) == 0 )
 						ALU = true;
@@ -546,7 +549,7 @@ void secondpass(std::stringstream& is) {
 						}
 					}
 
-
+reti:
 					cout << '\t';
 					hprint(cout,instrcnt-1);
 					cout << " : ";
@@ -605,7 +608,11 @@ void createreservedwords() {
 	rw.push_back(pair<string,INSTRSIZE>("BEQ",1<<14));
 	rw.push_back(pair<string,INSTRSIZE>("BNE",3<<13));
 	rw.push_back(pair<string,INSTRSIZE>("JMP",3<<14));
-	rw.push_back(pair<string,INSTRSIZE>("JRL",rw.back().second)); // secondary op is 0
+
+	vector<pair<string,INSTRSIZE> >::iterator jmp = rw.end()-1; // pointer to JMP opcode1
+	rw.push_back(pair<string,INSTRSIZE>("JRL",jmp->second)); // secondary op is 0
+	rw.push_back(pair<string,INSTRSIZE>("RETI",jmp->second | 1));
+
 	rw.push_back(pair<string,INSTRSIZE>("B",-1));
 
 	//rw.push_back(pair<string,INSTRSIZE>("",7<<13)); // RESERVED

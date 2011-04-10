@@ -11,11 +11,11 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	wire [9:0] ledred;
 
 	// Warning: The file you submit for Project 1 must use a PLL with a 50% duty cycle
-	wire clk,lock;
-	OneCycPll oneCycPll(.inclk0(CLOCK_50),.c0(clk),.locked(lock));
+	//wire clk,lock;
+	//OneCycPll oneCycPll(.inclk0(CLOCK_50),.c0(clk),.locked(lock));
 	//wire clk = KEY[0];
-	//wire clk = CLOCK_50;
-	//wire lock = 1'b1;
+	wire clk = CLOCK_50;
+	wire lock = 1'b1;
 	wire [3:0] keys=KEY;
 	wire [9:0] switches=SW;
 	//assign LEDR = opcode1;
@@ -368,7 +368,7 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
   wire [(DBITS-1):0] MemVal;
   // Connect memory array to other signals
   wire MemEnable=(dmemaddr[(DBITS-1):13]==3'b0);
-  MemArray #(.DBITS(DBITS),.ABITS(12),.MFILE("Sorter3.mif")) memArray(
+  MemArray #(.DBITS(DBITS),.ABITS(12),.MFILE("RETItest.mif")) memArray(
     .ADDR1(dmemaddr[12:1]),.DOUT1(MemVal),
     .ADDR2(imemaddr[12:1]),.DOUT2(imemout),
     .DIN(dmemin),
