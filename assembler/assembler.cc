@@ -100,7 +100,7 @@ int main(int argc, char* argv[]) {
 
 	for(int i = 0; i < labels.size(); ++i) {
 		std::cout << labels[i].first << ' '; 
-		hprint(std::cout,labels[i].second);
+		hprint(std::cout,labels[i].second*2);
 		std::cout << '\n';
 	}
 
@@ -551,7 +551,7 @@ void secondpass(std::stringstream& is) {
 
 reti:
 					cout << '\t';
-					hprint(cout,instrcnt-1);
+					hprint(cout,(instrcnt-1)*2);
 					cout << " : ";
 					hprint(cout,instr);
 					cout << '\n';
