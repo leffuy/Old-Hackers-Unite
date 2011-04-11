@@ -1,0 +1,26 @@
+
+.ORIG 0x200
+XOR GP,GP,GP
+
+LW R1,goto(GP)
+JRL R1,RV
+
+ADDI R0,R0,-1
+SW R0,-4(GP)
+loop:
+	BEQ GP,GP,loop
+
+goto:
+	XOR GP,GP,GP
+	XOR GP,GP,GP
+	XOR GP,GP,GP
+	XOR GP,GP,GP
+	RETI
+
+	ADDI R0,R0,-1
+	SW R0,-6(GP)
+loopfail:
+	BEQ GP,GP,loop
+	
+	
+		
