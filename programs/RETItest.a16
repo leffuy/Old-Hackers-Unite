@@ -1,9 +1,10 @@
 
 .ORIG 0x200
 XOR GP,GP,GP
+ADDI R0,GP,-1
 
 LW R1,goto(GP)
-JRL R1,RV
+JRL R1,RA
 
 ADDI R0,R0,-1
 SW R0,-4(GP)
@@ -11,13 +12,11 @@ loop:
 	BEQ GP,GP,loop
 
 goto:
-	XOR GP,GP,GP
-	XOR GP,GP,GP
-	XOR GP,GP,GP
-	XOR GP,GP,GP
+	ADDI R2,R2,1
+	ADDI R2,R2,1
+	ADDI R2,R2,1
 	RETI
 
-	ADDI R0,R0,-1
 	SW R0,-6(GP)
 loopfail:
 	BEQ GP,GP,loop

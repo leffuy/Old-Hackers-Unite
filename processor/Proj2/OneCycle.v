@@ -11,11 +11,11 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	wire [9:0] ledred;
 
 	// Warning: The file you submit for Project 1 must use a PLL with a 50% duty cycle
-	//wire clk,lock;
-	//OneCycPll oneCycPll(.inclk0(CLOCK_50),.c0(clk),.locked(lock));
+	wire clk,lock;
+	OneCycPll oneCycPll(.inclk0(CLOCK_50),.c0(clk),.locked(lock));
 	//wire clk = KEY[0];
-	wire clk = CLOCK_50;
-	wire lock = 1'b1;
+	//wire clk = CLOCK_50;
+	//wire lock = 1'b1;
 	wire [3:0] keys=KEY;
 	wire [9:0] switches=SW;
 	//assign LEDR = opcode1;
@@ -383,7 +383,7 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	// This is the entire decoding logic. But it generates some values (aluin2, wregval, nextPC) in addition to control signals
 	// You may want to have these values selected in the datapath, and have the control logic just create selection signals
 	// E.g. for aluin2, you could have "assign aluin=regaluin2?regout2:dimm;" in the datapath, then set the "regaluin2" control signal here
-	always @(opcode1 or opcode2 or rdst or rsrc1 or rsrc2 or pcplus or pctarg or fregout1_A or fregout2_A or rregno1 or rsrc1 or
+	always @(opcode1 or opcode2 or rdst or rsrc1 or rsrc2 or pcplus or pctarg or fregout1_D or fregout2_D or rregno1 or rsrc1 or
 	dmemout or dimm or  PC or aluz or pcplus_M or flush or regout1_M or BEQsig_D or BNEsig_D or
  	JMPsig_D or BEQsig_M or BNEsig_M or JMPsig_M ) begin
     {rregno1, aluin2,          alufunc,  wrmem, wregno,    wrreg, nextPC,immsig,flush,BEQsig_D,BNEsig_D,JMPsig_D,LWsig_D}=
@@ -414,7 +414,7 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 				{rdst,1'b1,1'b1};
 			JMP_RETI:
 				{rregno1,nextPC}=
-				{3'b101,fregout1_D};
+				{3'b100,fregout1_D};
 
 			JMP_RSR:;
 
