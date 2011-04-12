@@ -9,7 +9,7 @@ ADDI R0,GP,-1
 
 LW R1,jmpval(GP)
 SW R1,-8(GP)
-JRL R1,RA
+JRL RA,(R1)
 
 ADDI R0,R0,-1
 SW R0,-4(GP)
