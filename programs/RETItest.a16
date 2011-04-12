@@ -11,18 +11,11 @@ LW R1,jmpval(GP)
 SW R1,-8(GP)
 JRL RA,(R1)
 
-ADDI R0,R0,-1
 SW R0,-4(GP)
 loop:
 	BEQ GP,GP,loop
 
 goto:
-	ADDI R2,R2,1
-	ADDI R2,R2,1
-	ADDI R2,R2,1
-	ADDI R2,R2,1
-	ADDI R2,R2,1
-	ADDI R2,R2,1
 	RETI
 
 	SW R0,-6(GP)
