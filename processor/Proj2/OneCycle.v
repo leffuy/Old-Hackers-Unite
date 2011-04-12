@@ -5,7 +5,7 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	output [9:0] LEDR;
 	output [7:0] LEDG;
 	output [6:0] HEX0,HEX1,HEX2,HEX3;
-	`define MEMFILE "Test3.mif"
+	`define MEMFILE "Sorter3.mif"
 
 	wire [6:0] digit0,digit1,digit2,digit3;
 	wire [7:0] ledgreen;
@@ -177,11 +177,7 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	reg IE, OIE, CM, OM;
 	reg [(DBITS-1):0] SIH, SRA, SII, SR0, SR1;
 
-	reg [(DBITS-1):0] sregout_D, sregout_A, sregout_M;
-	always @(posedge clk) begin
-		sregout_A <= sregout_D;
-		sregout_M <= sregout_A;
-	end
+	reg [(DBITS-1):0] sregout_M;
 
 	always @(rregno1_M or IE or OIE or CM or OM or SIH or SRA or SII or SR0 or SR1) begin
 		case(rregno1_M)
