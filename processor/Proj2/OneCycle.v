@@ -5,7 +5,7 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	output [9:0] LEDR;
 	output [7:0] LEDG;
 	output [6:0] HEX0,HEX1,HEX2,HEX3;
-	`define MEMFILE "Test2.mif"
+	`define MEMFILE "Test3.mif"
 
 	wire [6:0] digit0,digit1,digit2,digit3;
 	wire [7:0] ledgreen;
@@ -166,8 +166,8 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	RegFile #(.DBITS(DBITS),.ABITS(3),.MFILE("Regs.mif")) regFile(
 		.RADDR1(rregno1),.DOUT1(regout1),
 		.RADDR2(rregno2),.DOUT2(regout2),
-		.WADDR(wregno_M),.DIN(wregval_M),
-		.WE(wrreg_M),.CLK(clk));
+		.WADDR(wregno_W),.DIN(wregval_W),
+		.WE(wrreg_W),.CLK(clk));
 
 	// System registers
 	reg IE, OIE, CM, OM;
@@ -220,14 +220,12 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 		or wrreg_W or wregno_W or wregval_W) begin
 		fregout1_D = regout1;
 		fregout2_D = regout2;
-		/*
 		if(wrreg_W) begin
 			if(rregno1 == wregno_W)
 				fregout1_D = wregval_W;
 			if(rregno2 == wregno_W)
 				fregout2_D = wregval_W;
 		end
-		*/
 		if(wrreg_M) begin
 			if(rregno1 == wregno_M)
 				fregout1_D = wregval_M;
@@ -239,14 +237,12 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 		or wrreg_W or wregno_W or wregval_W or regout1_A or regout2_A) begin
 		fregout1_A = regout1_A;
 		fregout2_A = regout2_A;
-		/*
 		if(wrreg_W) begin
 			if(rregno1_A == wregno_W)
 				fregout1_A = wregval_W;
 			if(rregno2_A == wregno_W)
 				fregout2_A = wregval_W;
 		end
-		*/
 		if(wrreg_M) begin
 			if(rregno1_A == wregno_M)
 				fregout1_A = wregval_M;
@@ -301,13 +297,6 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
   //wire aluoutz=(aluout==16'b0);
 
   reg wrmem;
-  reg [(DBITS-1):0] dmemaddr, dmemin;
-  // Warning: The file you submit for Project 1 must not use negedge for anything
-	always @(dmemaddr or aluout_M)
-		dmemaddr = aluout_M;
-
-	always @(dmemin or regout2_M)
-		dmemin = regout2_M;
 	
   /*reg [(DBITS-1):0] HexOut;
   SevenSeg ss3(.OUT(digit3),.IN(HexOut[15:12]));
