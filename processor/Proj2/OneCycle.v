@@ -118,6 +118,7 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 
 	// signals
 	reg immsig, immsig_A, flush, flushsig,
+		selsysreg_D, selsysreg_A,selsysreg_M,
 		BEQsig_D, BNEsig_D,JMPsig_D,
 		BEQsig_A, BNEsig_A,JMPsig_A,
 		BEQsig_M, BNEsig_M,JMPsig_M,
@@ -135,6 +136,9 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 
 		LWsig_A <= LWsig_D;
 		LWsig_M <= LWsig_A;
+
+		selsysreg_A <= selsysreg_D;
+		selsysreg_M <= selsysreg_A;
 
 		if(flush) begin
 			BEQsig_A <= 1'b0;
@@ -353,6 +357,7 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	// We simply treat it as one of the possible sources for the
 	// value on the rbus, driving the rbus only if this is not a LW
 	assign rbus=(!LWsig_M)?aluout_M:{DBITS{1'bz}};
+	assign rbus=(selsysreg_M)?sregout_M:{DBITS{1'bz}};
 
 	Memory #(.ABITS(DBITS),.RABITS(13),.SABITS(1),
 		.WBITS(DBITS),.MFILE(`MEMFILE))
@@ -403,7 +408,7 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	// You may want to have these values selected in the datapath, and have the control logic just create selection signals
 	// E.g. for aluin2, you could have "assign aluin=regaluin2?regout2:dimm;" in the datapath, then set the "regaluin2" control signal here
 	always @(opcode1 or opcode2 or rdst or rsrc1 or rsrc2 or pcplus or pctarg or fregout1_D or fregout2_D or rregno1 or rsrc1 or
-	dimm or  PC or aluz or pcplus_M or flush or regout1_M or BEQsig_D or BNEsig_D or
+	dimm or  PC or aluz or pcplus_M or flush or regout1_M or BEQsig_D or BNEsig_D or selsysreg_D or
  	JMPsig_D or BEQsig_M or BNEsig_M or JMPsig_M ) begin
     {rregno1, aluin2,          alufunc,  wrmem, wregno,    wrreg, nextPC,immsig,flush,BEQsig_D,BNEsig_D,JMPsig_D,LWsig_D}=
     {rsrc1,   {(DBITS){1'bX}},{4{1'bX}}, 1'b0,  {3{1'bX}}, 1'b0,  pcplus,1'b0,  1'b0, 1'b0,    1'b0,    1'b0,    1'b0};
@@ -436,8 +441,8 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 				{3'b100,fregout1_D};
 
 			JMP_RSR:
-				{selreg_D,wregno,wrreg}=
-				{rsrc1,rdst,1'b1};
+				{selsysreg_D,wregno,wrreg}=
+				{1'b1,rdst,1'b1};
 			JMP_WSR:
 				;
 			default:;
