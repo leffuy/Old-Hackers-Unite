@@ -34,7 +34,7 @@ module Memory(IADDR,IOUT,ABUS,RBUS,RE,WBUS,WE,CLK,LOCK,INIT);
 		end
 	end
 	assign RBUS=rdMem?marray[ABUS[(RABITS-1):SABITS]]:
-                     {WBITS{1'bz}};
+		{WBITS{1'bz}};
 	assign IOUT=
 		(IADDR[(ABITS-1):RABITS]=={(ABITS-RABITS){1'b0}})?
 		marray[IADDR[(RABITS-1):SABITS]]:
@@ -93,117 +93,148 @@ module Timer(ABUS,RBUS,RE,WBUS,WE,INTR,CLK,LOCK,INIT);
 			end else if(TCNT!={DBITS{1'b0}}) begin
 				// TODO: Add code for actual counting, setting Rdy and Ovf, etc.
 			end
-    end
-  end
+		end
+	end
 	// TODO: Put register values to RBUS when appropriate
-  assign INTR=Rdy&&IE;
+	assign INTR=Rdy&&IE;
 endmodule
 
 module Display(ABUS,RBUS,RE,WBUS,WE,CLK,LOCK,INIT,HEX0,HEX1,HEX2,HEX3);
-  parameter ABITS;
-  parameter DBITS;
-  parameter DADDR;
-  input wire [(ABITS-1):0] ABUS;
-  input wire [(DBITS-1):0] WBUS;
-  inout wire [(DBITS-1):0] RBUS;
-  input wire RE,WE,CLK,LOCK,INIT;
-  output wire [6:0] HEX0,HEX1,HEX2,HEX3;
-  reg [15:0] HexVal;
-  SevenSeg ss3(.OUT(HEX3),.IN(HexVal[15:12]));
-  SevenSeg ss2(.OUT(HEX2),.IN(HexVal[11: 8]));
-  SevenSeg ss1(.OUT(HEX1),.IN(HexVal[ 7: 4]));
-  SevenSeg ss0(.OUT(HEX0),.IN(HexVal[ 3: 0]));
-  wire selDisp=(ABUS==DADDR);
-  wire wrDisp=WE&&selDisp;
-  always @(posedge CLK) if(LOCK) begin
-    if(INIT)
-      HexVal<=16'hDEAD;
-    else if(wrDisp)
-      HexVal<=WBUS[15:0];
-  end
-  wire rdDisp=RE&selDisp;
-  assign RBUS=rdDisp?{{{DBITS-16}{1'b0}},HexVal}:
-              {DBITS{1'bz}};
+	parameter ABITS;
+	parameter DBITS;
+	parameter DADDR;
+	input wire [(ABITS-1):0] ABUS;
+	input wire [(DBITS-1):0] WBUS;
+	inout wire [(DBITS-1):0] RBUS;
+	input wire RE,WE,CLK,LOCK,INIT;
+	output wire [6:0] HEX0,HEX1,HEX2,HEX3;
+	reg [15:0] HexVal;
+	SevenSeg ss3(.OUT(HEX3),.IN(HexVal[15:12]));
+	SevenSeg ss2(.OUT(HEX2),.IN(HexVal[11: 8]));
+	SevenSeg ss1(.OUT(HEX1),.IN(HexVal[ 7: 4]));
+	SevenSeg ss0(.OUT(HEX0),.IN(HexVal[ 3: 0]));
+	wire selDisp=(ABUS==DADDR);
+	wire wrDisp=WE&&selDisp;
+	always @(posedge CLK) if(LOCK) begin
+		if(INIT)
+			HexVal<=16'hDEAD;
+		else if(wrDisp)
+			HexVal<=WBUS[15:0];
+	end
+	wire rdDisp=RE&selDisp;
+	assign RBUS=rdDisp?{{{DBITS-16}{1'b0}},HexVal}:
+		{DBITS{1'bz}};
 endmodule
 
 module Leds(ABUS,RBUS,RE,WBUS,WE,CLK,LOCK,INIT,LED);
-  parameter ABITS;
-  parameter DBITS;
-  parameter DADDR;
-  parameter LBITS;
-  input wire [(ABITS-1):0] ABUS;
-  input wire [(DBITS-1):0] WBUS;
-  inout wire [(DBITS-1):0] RBUS;
-  input wire RE,WE,CLK,LOCK,INIT;
-  output wire [(LBITS-1):0] LED=val;
-  reg [(LBITS-1):0] val;
-	// TODO: Put code here to change "val" when appropriate
-	// TODO: Put code here to put "val" on RBUS when appropriate
+	parameter ABITS;
+	parameter DBITS;
+	parameter DADDR;
+	parameter LBITS;
+	input wire [(ABITS-1):0] ABUS;
+	input wire [(DBITS-1):0] WBUS;
+	inout wire [(DBITS-1):0] RBUS;
+	input wire RE,WE,CLK,LOCK,INIT;
+	output wire [(LBITS-1):0] LED=val;
+	reg [(LBITS-1):0] val;
+	wire selLED = (ABUS==DADDR);
+	wire wrLED=WE&&selLED;
+	always @(posedge CLK) if(LOCK) begin
+	if(INIT)
+		val <= {LBITS{1'b0}};
+	else if(wrLED)
+		val <= WBUS[(LBITS-1):0];
+	end
+	wire rdLED=RE&selLED;
+	assign RBUS=rdLED?{{{LBITS-16}{1'b0}},val}:
+		{DBITS{1'bz}};
 endmodule
 
 module KeyDev(ABUS,RBUS,RE,WBUS,WE,INTR,CLK,LOCK,INIT,KEY);
-  parameter ABITS;
-  parameter DBITS;
-  parameter DADDR;
-  parameter CADDR;
-  input wire [(ABITS-1):0] ABUS;
-  input wire [(DBITS-1):0] WBUS;
-  inout wire [(DBITS-1):0] RBUS;
-  input wire RE,WE,CLK,LOCK,INIT;
-  input wire [3:0] KEY;
-  output wire INTR;
-  wire selData=(ABUS==DADDR);
-  wire rdData=RE&&selData;
-  wire selCtrl=(ABUS==CADDR);
-  wire wrCtrl=WE&&selCtrl;
-  wire rdCtrl=RE&&selCtrl;
-  reg [3:0] prev;
-  reg Rdy,Ovr,IE;
-  always @(posedge CLK) if(LOCK) begin
-    if(INIT) begin
-      prev<=KEY;
-      {Rdy,Ovr,IE}<=3'b000;
-    end else begin
-		// State of KEY has changed?
-      if(prev!=KEY) begin
-			// TODO: Need to update Rdy and Ovf to work correctly
-      end
-		// Reading DATA register?
-		if(rdData) begin
-			Rdy<=1'b0;
-      end
-		// Writing CTRL register?
-      if(wrCtrl) begin
-			// Write to Rdy is ignored, so it does not appear here
-			// Write of 1 to Ovr is ignored, but write of 0 is OK
-			if(!WBUS[1])
-				Ovr<=1'b0;
-			IE<=WBUS[4];
+	parameter ABITS;
+	parameter DBITS;
+	parameter DADDR;
+	parameter CADDR;
+	input wire [(ABITS-1):0] ABUS;
+	input wire [(DBITS-1):0] WBUS;
+	inout wire [(DBITS-1):0] RBUS;
+	input wire RE,WE,CLK,LOCK,INIT;
+	input wire [3:0] KEY;
+	output wire INTR;
+	wire selData=(ABUS==DADDR);
+	wire rdData=RE&&selData;
+	wire selCtrl=(ABUS==CADDR);
+	wire wrCtrl=WE&&selCtrl;
+	wire rdCtrl=RE&&selCtrl;
+	reg [3:0] prev;
+	reg Rdy,Ovr,IE;
+	always @(posedge CLK) if(LOCK) begin
+		if(INIT) begin
+			prev<=KEY;
+			{Rdy,Ovr,IE}<=3'b000;
+		end else begin
+			// State of KEY has changed?
+			if(prev!=KEY) begin
+				prev <= KEY;
+				if(Rdy)
+					Ovr <= 1'b1;
+				Rdy <= 1'b1;
+			end
+			// Reading DATA register?
+			if(rdData) begin
+				Rdy<=1'b0;
+			end
+			// Writing CTRL register?
+			if(wrCtrl) begin
+				// Write to Rdy is ignored, so it does not appear here
+				// Write of 1 to Ovr is ignored, but write of 0 is OK
+				if(!WBUS[1])
+					Ovr<=1'b0;
+				IE<=WBUS[4];
+			end
 		end
-    end
-  end
-  assign RBUS=rdData?{{(DBITS-4){1'b0}},KEY}:
-              {DBITS{1'bz}};
-  assign RBUS=rdCtrl?{{(DBITS-5){1'b0}},IE,2'b0,Ovr,Rdy}:
-              {DBITS{1'bz}};
-  assign INTR=Rdy&&IE;
+	end
+	assign RBUS=rdData?{{(DBITS-4){1'b0}},KEY}:
+		{DBITS{1'bz}};
+	assign RBUS=rdCtrl?{{(DBITS-5){1'b0}},IE,2'b0,Ovr,Rdy}:
+		{DBITS{1'bz}};
+	assign INTR=Rdy&&IE;
 endmodule
 
 module SwDev(ABUS,RBUS,RE,WBUS,WE,INTR,CLK,LOCK,INIT,SW);
-  parameter ABITS;
-  parameter DBITS;
-  parameter DADDR;
-  parameter CADDR;
-  input wire [(ABITS-1):0] ABUS;
-  input wire [(DBITS-1):0] WBUS;
-  inout wire [(DBITS-1):0] RBUS;
-  input wire RE,WE,CLK,LOCK,INIT;
+	parameter ABITS;
+	parameter DBITS;
+	parameter DADDR;
+	parameter CADDR;
+	input wire [(ABITS-1):0] ABUS;
+	input wire [(DBITS-1):0] WBUS;
+	inout wire [(DBITS-1):0] RBUS;
+	input wire RE,WE,CLK,LOCK,INIT;
 	// Number of bits in the debounce counter
-  parameter DEBB;
-  // Value for the debounce counter (# of CLK ticks in 10ms)
-  parameter DEBN;
-  input wire [9:0] SW;
-  output wire INTR;
-  // TODO: This should be similar to KeyDev, but you must first
-  // debounce for 10ms (see slides) before a change in SW affects Rdy
+	parameter DEBB;
+	// Value for the debounce counter (# of CLK ticks in 10ms)
+	parameter DEBN;
+	input wire [9:0] SW;
+	reg [9:0] prev, val;
+	output wire INTR;
+	// TODO: This should be similar to KeyDev, but you must first
+	// debounce for 10ms (see slides) before a change in SW affects Rdy
+	reg [(DEBB-1):0] counter;
+	always @(posedge CLK) if(LOCK) begin
+		if(INIT) begin
+			counter <= {DEBB{1'b0}};
+			prev <= SW;
+			val <= SW;
+		end
+		else begin
+			if(!counter)
+				val <= prev;
+			else
+				counter <= counter - 1'b1;
+			if(prev != SW) begin
+				counter <= DEBN;
+				prev <= SW;
+			end
+		end
+	end
 endmodule
