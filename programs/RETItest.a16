@@ -1,9 +1,14 @@
 
+.ORIG 0x0
+jmpval:
+.DATA goto
+
 .ORIG 0x200
 XOR GP,GP,GP
 ADDI R0,GP,-1
 
-LW R1,goto(GP)
+LW R1,jmpval(GP)
+SW R1,-8(GP)
 JRL R1,RA
 
 ADDI R0,R0,-1
@@ -12,6 +17,9 @@ loop:
 	BEQ GP,GP,loop
 
 goto:
+	ADDI R2,R2,1
+	ADDI R2,R2,1
+	ADDI R2,R2,1
 	ADDI R2,R2,1
 	ADDI R2,R2,1
 	ADDI R2,R2,1

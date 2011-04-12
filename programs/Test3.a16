@@ -19,7 +19,6 @@ RetAddr:
 
 	;  Now the actual code
 	.ORIG 0x200
-	XOR	R0,R0,R0	; R0 is hold value zero
 	XOR	GP,GP,GP	; GP is hold value zero
 
 	ADDI	RV,GP,1

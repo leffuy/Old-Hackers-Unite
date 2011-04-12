@@ -219,34 +219,38 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 		or wrreg_W or wregno_W or wregval_W) begin
 		fregout1_D = regout1;
 		fregout2_D = regout2;
-		if(wrreg_M) begin
-			if(rregno1 == wregno_M)
-				fregout1_D = wregval_M;
-			if(rregno2 == wregno_M)
-				fregout2_D = wregval_M;
-		end
+		/*
 		if(wrreg_W) begin
 			if(rregno1 == wregno_W)
 				fregout1_D = wregval_W;
 			if(rregno2 == wregno_W)
 				fregout2_D = wregval_W;
 		end
+		*/
+		if(wrreg_M) begin
+			if(rregno1 == wregno_M)
+				fregout1_D = wregval_M;
+			if(rregno2 == wregno_M)
+				fregout2_D = wregval_M;
+		end
 	end
 	always @(rregno1_A or rregno2_A or fregout1_A or fregout2_A or wrreg_M or wregno_M or wregval_M 
 		or wrreg_W or wregno_W or wregval_W or regout1_A or regout2_A) begin
 		fregout1_A = regout1_A;
 		fregout2_A = regout2_A;
+		/*
+		if(wrreg_W) begin
+			if(rregno1_A == wregno_W)
+				fregout1_A = wregval_W;
+			if(rregno2_A == wregno_W)
+				fregout2_A = wregval_W;
+		end
+		*/
 		if(wrreg_M) begin
 			if(rregno1_A == wregno_M)
 				fregout1_A = wregval_M;
 			if(rregno2_A == wregno_M)
 				fregout2_A = wregval_M;
-		end
-		if(wrreg_W) begin
-			if(rregno1_A == wregno_W)
-				fregout1_A <= wregval_W;
-			if(rregno2_A == wregno_W)
-				fregout2_A <= wregval_W;
 		end
 	end
 /*	
@@ -416,9 +420,10 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 				{rregno1,nextPC}=
 				{3'b100,fregout1_D};
 
-			JMP_RSR:;
-
-			JMP_WSR:;
+			JMP_RSR:
+				;
+			JMP_WSR:
+				;
 			default:;
 		endcase
 	default:
