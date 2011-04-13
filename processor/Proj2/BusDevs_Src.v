@@ -92,10 +92,29 @@ module Timer(ABUS,RBUS,RE,WBUS,WE,INTR,CLK,LOCK,INIT);
 				end
 			end else if(TCNT!={DBITS{1'b0}}) begin
 				// TODO: Add code for actual counting, setting Rdy and Ovf, etc.
+				if(TDIV==DIVN) begin
+					if(!TCNT_next) begin
+						if(Rdy)
+							Ovr <= 1'b1;
+						Rdy <= 1'b1;
+						TCNT <= TRES;
+					end
+					else
+						TCNT<=TCNT_next;
+					TDIV<={DIVB{1'b0}};
+				end
+				else
+					TDIV <= TDIV_next;
 			end
 		end
 	end
 	// TODO: Put register values to RBUS when appropriate
+	assign RBUS=rdCtl?{{(DBITS-5){1'b0}},IE,2'b0,Ovr,Rdy}:
+		{DBITS{1'bz}};
+	assign RBUS=rdRes?{{(DBITS-16){1'b0}},TRES}:
+		{DBITS{1'bz}};
+	assign RBUS=rdCnt?{{(DBITS-16){1'b0}},TCNT}:
+		{DBITS{1'bz}};
 	assign INTR=Rdy&&IE;
 endmodule
 
@@ -117,7 +136,7 @@ module Display(ABUS,RBUS,RE,WBUS,WE,CLK,LOCK,INIT,HEX0,HEX1,HEX2,HEX3);
 	wire wrDisp=WE&&selDisp;
 	always @(posedge CLK) if(LOCK) begin
 		if(INIT)
-			HexVal<=16'hDEAD;
+			HexVal<=16'h0000;
 		else if(wrDisp)
 			HexVal<=WBUS[15:0];
 	end
@@ -217,24 +236,52 @@ module SwDev(ABUS,RBUS,RE,WBUS,WE,INTR,CLK,LOCK,INIT,SW);
 	input wire [9:0] SW;
 	reg [9:0] prev, val;
 	output wire INTR;
+	wire selData=(ABUS==DADDR);
+	wire rdData=RE&&selData;
+	wire selCtrl=(ABUS==CADDR);
+	wire wrCtrl=WE&&selCtrl;
+	wire rdCtrl=RE&&selCtrl;
+	reg Rdy,Ovr,IE;
 	// TODO: This should be similar to KeyDev, but you must first
 	// debounce for 10ms (see slides) before a change in SW affects Rdy
-	reg [(DEBB-1):0] counter;
+	reg [DEBB:0] counter;
 	always @(posedge CLK) if(LOCK) begin
 		if(INIT) begin
 			counter <= {DEBB{1'b0}};
 			prev <= SW;
 			val <= SW;
+			{Rdy,Ovr,IE}<=3'b000;
 		end
 		else begin
-			if(!counter)
+			if(!counter) begin
 				val <= prev;
+				if(Rdy)
+					Ovr <= 1'b1;
+				Rdy <= 1'b1;
+			end
 			else
 				counter <= counter - 1'b1;
 			if(prev != SW) begin
 				counter <= DEBN;
 				prev <= SW;
 			end
+			// Reading DATA register?
+			if(rdData) begin
+				Rdy<=1'b0;
+			end
+			// Writing CTRL register?
+			if(wrCtrl) begin
+				// Write to Rdy is ignored, so it does not appear here
+				// Write of 1 to Ovr is ignored, but write of 0 is OK
+				if(!WBUS[1])
+					Ovr<=1'b0;
+				IE<=WBUS[4];
+			end
 		end
 	end
+	assign RBUS=rdData?{{(DBITS-10){1'b0}},val}:
+		{DBITS{1'bz}};
+	assign RBUS=rdCtrl?{{(DBITS-5){1'b0}},IE,2'b0,Ovr,Rdy}:
+		{DBITS{1'bz}};
+	assign INTR=Rdy&&IE;
 endmodule
