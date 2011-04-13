@@ -193,9 +193,6 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	reg IE, OIE, CM, OM;
 	reg [(DBITS-1):0] SIH, SRA, SII, SR0, SR1;
 
-	always @(posedge clk) begin
-	end
-
 	always @(rregno1_M or IE or OIE or CM or OM or SIH or SRA or SII or SR0 or SR1) begin
 		case(rregno1_M)
 			SREG_SCS: sregout_M={{(DBITS-4){1'b0}},OM,CM,OIE,IE};
@@ -314,7 +311,7 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 
 	always @(wrreg_M or wregval_M or aluout_M or JMPsig_M or LWsig_M or result_M or pcplus_M) begin
 		wregval_M = aluout_M;
-		if(LWsig_M)		
+		if(LWsig_M || selsysreg_M)		
 			wregval_M = result_M;
 		else if(JMPsig_M)
 			wregval_M = pcplus_M;
@@ -430,7 +427,7 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 
 	always @(posedge clk) begin
 		if(wrsysen_M) begin
-			case(rregno1_M)
+			case(wregno_M)
 				SREG_SCS: {OM,CM,OIE,IE}<=regout1_M[3:0];
 				SREG_SIH: SIH<=regout1_M;
 				SREG_SRA: SRA<=regout1_M;
@@ -490,8 +487,8 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 				{selsysreg_D,wregno,wrreg}=
 				{1'b1,rdst,1'b1};
 			JMP_WSR:
-				{wrsysen_D}=
-				{1'b1};
+				{wrsysen_D,wregno}=
+				{1'b1,rdst};
 			default:;
 		endcase
 	default:
