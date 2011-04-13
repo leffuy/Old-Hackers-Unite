@@ -335,11 +335,11 @@ void secondpass(std::stringstream& is) {
 	string token;
 	int instrcnt = 0;
 	INSTRSIZE address = 0;
-	bool reverse12, offset, ALU, B, ADDI, JMP, LW, SW, NOT, SUBI, RSR, WSR;
+	bool reverse12, offset, ALU, B, ADDI, JMP, LW, SW, NOT, SUBI, RSR, WSR, NOP;
 
 	// Read each token
 	while(is.good()) {
-		offset = reverse12 = ALU = ADDI = B = JMP = LW = SW = NOT = SUBI = RSR = WSR = false;
+		offset = reverse12 = ALU = ADDI = B = JMP = LW = SW = NOT = SUBI = RSR = WSR = NOP = false;
 		is >> token;
 		if(!is.good())
 			break;
@@ -389,6 +389,8 @@ void secondpass(std::stringstream& is) {
 						RSR=true;
 					else if(token.compare("WSR") == 0)
 						WSR=true;
+					else if(token.compare("NOP") == 0)
+						goto nop;
 
 					
 					if ( (instr>>13) == 0 )
@@ -557,6 +559,7 @@ void secondpass(std::stringstream& is) {
 						}
 					}
 
+nop:
 reti:
 rsr:
 wsr:
@@ -591,6 +594,8 @@ void createreservedwords() {
 	// Convert all these to base 16 or base 8?
 
 //--- INSTRUCTIONS ---//
+	// NOP -> 0x0009
+	rw.push_back(pair<string,INSTRSIZE>("NOP",9));
 	// ALU things
 	// No shifting needed since primary op is 000
 	rw.push_back(pair<string,INSTRSIZE>("ADD",0));
