@@ -122,6 +122,7 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	reg wrsysen_D, wrsysen_A, wrsysen_M;
 	reg immsig, immsig_A, flush, flushsig,
 		selsysreg_D, selsysreg_A,selsysreg_M,
+		alusig_D, alusig_A, alusig_M,
 		BEQsig_D, BNEsig_D,JMPsig_D,
 		BEQsig_A, BNEsig_A,JMPsig_A,
 		BEQsig_M, BNEsig_M,JMPsig_M,
@@ -136,6 +137,9 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 		BEQsig_M <= BEQsig_A;
 		BNEsig_M <= BNEsig_A;
 		JMPsig_M <= JMPsig_A;
+
+		alusig_A <= alusig_D;
+		alusig_M <= alusig_A;
 
 		LWsig_A <= LWsig_D;
 		LWsig_M <= LWsig_A;
@@ -160,6 +164,9 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 
 			wrsysen_A <= 1'b0;
 			wrsysen_M <= 1'b0;
+
+			alusig_A <= 1'b0;
+			alusig_M <= 1'b0;
 		end
 	end
 
@@ -365,7 +372,7 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	// restmp_M contains the register value from the ALU stage
 	// We simply treat it as one of the possible sources for the
 	// value on the rbus, driving the rbus only if this is not a LW
-	assign rbus=(!LWsig_M)?aluout_M:{DBITS{1'bz}};
+	assign rbus=(alusig_M)?aluout_M:{DBITS{1'bz}};
 	assign rbus=(selsysreg_M)?sregout_M:{DBITS{1'bz}};
 
 	Memory #(.ABITS(DBITS),.RABITS(13),.SABITS(1),
@@ -447,17 +454,17 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	// You may want to have these values selected in the datapath, and have the control logic just create selection signals
 	// E.g. for aluin2, you could have "assign aluin=regaluin2?regout2:dimm;" in the datapath, then set the "regaluin2" control signal here
 	always @(opcode1 or opcode2 or rdst or rsrc1 or rsrc2 or pcplus or pctarg or fregout1_D or fregout2_D or rregno1 or rsrc1 or
-	dimm or  PC or aluz or pcplus_M or flush or regout1_M or BEQsig_D or BNEsig_D or selsysreg_D or wrsysen_D or IE or intr or
+	dimm or  PC or aluz or pcplus_M or flush or regout1_M or BEQsig_D or BNEsig_D or selsysreg_D or wrsysen_D or IE or intr or alusig_D or
  	JMPsig_D or BEQsig_M or BNEsig_M or JMPsig_M ) begin
-	{rregno1, aluin2,          alufunc,   wrmem, wregno,    wrreg, nextPC,immsig,flush,BEQsig_D,BNEsig_D,JMPsig_D,LWsig_D, selsysreg_D, wrsysen_D}=
-	{rsrc1,   {(DBITS){1'bX}}, {4{1'bX}}, 1'b0,  {3{1'bX}}, 1'b0,  pcplus,1'b0,  1'b0, 1'b0,    1'b0,    1'b0,    1'b0,    1'b0,        1'b0};
+	{rregno1, aluin2,          alufunc,   wrmem, wregno,    wrreg, nextPC,immsig,flush,BEQsig_D,BNEsig_D,JMPsig_D,LWsig_D, selsysreg_D, wrsysen_D, alusig_D}=
+	{rsrc1,   {(DBITS){1'bX}}, {4{1'bX}}, 1'b0,  {3{1'bX}}, 1'b0,  pcplus,1'b0,  1'b0, 1'b0,    1'b0,    1'b0,    1'b0,    1'b0,        1'b0,      1'b0};
 	case(opcode1)
 	OP1_ALU:
-		{alufunc,wregno,wrreg}=
-		{opcode2,rdst,1'b1};
+		{alusig_D,alufunc,wregno,wrreg}=
+		{1'b1,opcode2,rdst,1'b1};
 	OP1_ADDI:
-		{aluin2,alufunc,wregno,wrreg,immsig} =
-		{dimm,ALU_ADD,rsrc2,1'b1,1'b1};
+		{alusig_D,aluin2,alufunc,wregno,wrreg,immsig} =
+		{1'b1,dimm,ALU_ADD,rsrc2,1'b1,1'b1};
 	OP1_BEQ:
 		{alufunc,nextPC,BEQsig_D}=
 		{ALU_XOR,pctarg,1'b1};
