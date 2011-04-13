@@ -29,9 +29,10 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	reg init = 1'b0;
 	always @(posedge clk) if(lock) init<=1'b1;
 
-	always @(posedge clk) begin
-		if(lock && init)
+	always @(posedge clk) if(lock && init) begin
 			PC <= nextPC;
+		if(intreq)
+			PC <= SIH;
 	end
 
 	wire [(DBITS-1):0] pcplus=PC+16'd2;
@@ -421,12 +422,29 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	// Note that you will also need to use the intr_* signals to
 	// interrupt the processor as appropriate, and to set the SII
 	//      value when jumping to the interrupt handler
+	wire intreq=(!init) && ( //iinst_B ||
+		(IE && (intr_timer||intr_keys||intr_sws)));
+	wire intr = intr_keys | intr_sws | intr_timer;
+	wire [3:0] intnum =
+		//iinst_B		? 4'h0:
+		intr_timer	? 4'h1:
+		intr_keys	? 4'h2:
+		intr_sws		? 4'h3: 4'hF;
+
+	always @(posedge clk) if(IE && intr) begin
+		OM <= CM;
+		CM <= 1'b1;
+		OIE <= IE;
+		IE <= 1'b0;
+		SRA <= nextPC;
+		SII <= intnum;
+	end
 
 	// This is the entire decoding logic. But it generates some values (aluin2, wregval, nextPC) in addition to control signals
 	// You may want to have these values selected in the datapath, and have the control logic just create selection signals
 	// E.g. for aluin2, you could have "assign aluin=regaluin2?regout2:dimm;" in the datapath, then set the "regaluin2" control signal here
 	always @(opcode1 or opcode2 or rdst or rsrc1 or rsrc2 or pcplus or pctarg or fregout1_D or fregout2_D or rregno1 or rsrc1 or
-	dimm or  PC or aluz or pcplus_M or flush or regout1_M or BEQsig_D or BNEsig_D or selsysreg_D or wrsysen_D or
+	dimm or  PC or aluz or pcplus_M or flush or regout1_M or BEQsig_D or BNEsig_D or selsysreg_D or wrsysen_D or IE or intr or
  	JMPsig_D or BEQsig_M or BNEsig_M or JMPsig_M ) begin
 	{rregno1, aluin2,          alufunc,   wrmem, wregno,    wrreg, nextPC,immsig,flush,BEQsig_D,BNEsig_D,JMPsig_D,LWsig_D, selsysreg_D, wrsysen_D}=
 	{rsrc1,   {(DBITS){1'bX}}, {4{1'bX}}, 1'b0,  {3{1'bX}}, 1'b0,  pcplus,1'b0,  1'b0, 1'b0,    1'b0,    1'b0,    1'b0,    1'b0,        1'b0};
@@ -488,6 +506,10 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 		flush = 1'b1;
 	end
 
+	// Interrupts
+	if(IE && intr) begin
+		flush = 1'b1;
+	end
   end
 
 endmodule
