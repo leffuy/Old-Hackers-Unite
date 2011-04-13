@@ -335,11 +335,11 @@ void secondpass(std::stringstream& is) {
 	string token;
 	int instrcnt = 0;
 	INSTRSIZE address = 0;
-	bool reverse12, offset, ALU, B, ADDI, JMP, LW, SW, NOT, SUBI;
+	bool reverse12, offset, ALU, B, ADDI, JMP, LW, SW, NOT, SUBI, RSR, WSR;
 
 	// Read each token
 	while(is.good()) {
-		offset = reverse12 = ALU = ADDI = B = JMP = LW = SW = NOT = SUBI = false;
+		offset = reverse12 = ALU = ADDI = B = JMP = LW = SW = NOT = SUBI = RSR = WSR = false;
 		is >> token;
 		if(!is.good())
 			break;
@@ -385,6 +385,10 @@ void secondpass(std::stringstream& is) {
 					}
 					if(token.compare("RETI") == 0)
 						goto reti;
+					else if(token.compare("RSR") == 0)
+						RSR=true;
+					else if(token.compare("WSR") == 0)
+						WSR=true;
 
 					
 					if ( (instr>>13) == 0 )
@@ -475,7 +479,7 @@ void secondpass(std::stringstream& is) {
 					else {
 						for(unsigned int j = 0; j < reservedwords.size(); ++j) {
 							if(token.compare(reservedwords[j].first) == 0) {
-								if(ALU || JMP)
+								if(ALU || JMP || RSR || WSR)
 									instr = instr | (reservedwords[j].second << 10);
 								else if(reverse12 || B)
 									instr = instr | (reservedwords[j].second << 7);
@@ -488,6 +492,10 @@ void secondpass(std::stringstream& is) {
 							}
 						}
 					}
+					if(WSR)
+						goto wsr;
+					if(RSR)
+						goto rsr;
 
 					if(!JMP && !NOT) {
 						
@@ -550,6 +558,8 @@ void secondpass(std::stringstream& is) {
 					}
 
 reti:
+rsr:
+wsr:
 					cout << '\t';
 					hprint(cout,(instrcnt-1)*2);
 					cout << " : ";
@@ -610,8 +620,10 @@ void createreservedwords() {
 	rw.push_back(pair<string,INSTRSIZE>("JMP",3<<14));
 
 	vector<pair<string,INSTRSIZE> >::iterator jmp = rw.end()-1; // pointer to JMP opcode1
-	rw.push_back(pair<string,INSTRSIZE>("JRL",jmp->second)); // secondary op is 0
-	rw.push_back(pair<string,INSTRSIZE>("RETI",jmp->second | 1));
+	rw.push_back(pair<string,INSTRSIZE>("JRL",jmp->second)); // secondary op is 00
+	rw.push_back(pair<string,INSTRSIZE>("RETI",jmp->second | 1)); // secondary is 01
+	rw.push_back(pair<string,INSTRSIZE>("RSR",jmp->second | 2)); // secondary is 10
+	rw.push_back(pair<string,INSTRSIZE>("WSR",jmp->second | 3)); // secondary is 11
 
 	rw.push_back(pair<string,INSTRSIZE>("B",-1));
 
@@ -625,16 +637,20 @@ void createreservedwords() {
 	// Use rw.back().second to create aliases
 	rw.push_back(pair<string,INSTRSIZE>("R0",0));
 	rw.push_back(pair<string,INSTRSIZE>("A0",rw.back().second));
+	rw.push_back(pair<string,INSTRSIZE>("SCS",rw.back().second));
 
 	rw.push_back(pair<string,INSTRSIZE>("R1",1));
 	rw.push_back(pair<string,INSTRSIZE>("A1",rw.back().second));
+	rw.push_back(pair<string,INSTRSIZE>("SIH",rw.back().second));
 
 	rw.push_back(pair<string,INSTRSIZE>("R2",2));
 	rw.push_back(pair<string,INSTRSIZE>("A2",rw.back().second));
+	rw.push_back(pair<string,INSTRSIZE>("SRA",rw.back().second));
 
 	rw.push_back(pair<string,INSTRSIZE>("R3",3));
 	rw.push_back(pair<string,INSTRSIZE>("A3",rw.back().second));
 	rw.push_back(pair<string,INSTRSIZE>("RV",rw.back().second));
+	rw.push_back(pair<string,INSTRSIZE>("SII",rw.back().second));
 
 	rw.push_back(pair<string,INSTRSIZE>("R4",4));
 	rw.push_back(pair<string,INSTRSIZE>("RA",rw.back().second));
@@ -644,9 +660,11 @@ void createreservedwords() {
 
 	// This is for system use, so if we get a hit should we error?
 	rw.push_back(pair<string,INSTRSIZE>("R6",6));
+	rw.push_back(pair<string,INSTRSIZE>("SR0",rw.back().second));
 
 	rw.push_back(pair<string,INSTRSIZE>("R7",7));
 	rw.push_back(pair<string,INSTRSIZE>("SP",rw.back().second));
+	rw.push_back(pair<string,INSTRSIZE>("SR1",rw.back().second));
 
 }
 
