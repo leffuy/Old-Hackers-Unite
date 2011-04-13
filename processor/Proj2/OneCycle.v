@@ -202,16 +202,6 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	end
 
 	always @(posedge clk) begin
-		if(wrsysen_M)
-			case(rregno1_M)
-				SREG_SCS: {OM,CM,OIE,IE}<=regout1_M[3:0];
-				SREG_SIH: SIH<=regout1_M;
-				SREG_SRA: SRA<=regout1_M;
-				SREG_SII: SII<=regout1_M;
-				SREG_SR0: SR0<=regout1_M;
-				SREG_SR1: SR1<=regout1_M;
-				default:;
-			endcase
 	end
 	
 	always @(posedge clk) begin
@@ -431,13 +421,26 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 		intr_keys	? 4'h2:
 		intr_sws		? 4'h3: 4'hF;
 
-	always @(posedge clk) if(IE && intr) begin
-		OM <= CM;
-		CM <= 1'b1;
-		OIE <= IE;
-		IE <= 1'b0;
-		SRA <= nextPC;
-		SII <= intnum;
+	always @(posedge clk) begin
+		if(wrsysen_M) begin
+			case(rregno1_M)
+				SREG_SCS: {OM,CM,OIE,IE}<=regout1_M[3:0];
+				SREG_SIH: SIH<=regout1_M;
+				SREG_SRA: SRA<=regout1_M;
+				SREG_SII: SII<=regout1_M;
+				SREG_SR0: SR0<=regout1_M;
+				SREG_SR1: SR1<=regout1_M;
+				default:;
+			endcase
+		end
+		if(IE && intr) begin
+			OM <= CM;
+			CM <= 1'b1;
+			OIE <= IE;
+			IE <= 1'b0;
+			SRA <= nextPC;
+			SII <= intnum;
+		end
 	end
 
 	// This is the entire decoding logic. But it generates some values (aluin2, wregval, nextPC) in addition to control signals
