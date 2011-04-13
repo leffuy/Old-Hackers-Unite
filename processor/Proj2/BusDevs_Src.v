@@ -117,7 +117,7 @@ module Display(ABUS,RBUS,RE,WBUS,WE,CLK,LOCK,INIT,HEX0,HEX1,HEX2,HEX3);
 	wire wrDisp=WE&&selDisp;
 	always @(posedge CLK) if(LOCK) begin
 		if(INIT)
-			HexVal<=16'hDEAD;
+			HexVal<=16'h0000;
 		else if(wrDisp)
 			HexVal<=WBUS[15:0];
 	end

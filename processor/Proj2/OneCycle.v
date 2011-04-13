@@ -5,7 +5,7 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	output [9:0] LEDR;
 	output [7:0] LEDG;
 	output [6:0] HEX0,HEX1,HEX2,HEX3;
-	`define MEMFILE "Sorter3.mif"
+	`define MEMFILE "SYStest.mif"
 
 	wire [6:0] digit0,digit1,digit2,digit3;
 	wire [7:0] ledgreen;
@@ -116,7 +116,9 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	wire [(DBITS-1):0]   dimm={{(DBITS-IMMBITS){imm[IMMBITS-1]}},imm};
 	wire [(DBITS-1):0]   bimm={{(DBITS-IMMBITS-1){imm[IMMBITS-1]}},imm,1'b0};
 
+	reg [(DBITS-1):0] sregout_M, wrsysval_D, wrsysval_A, wrsysval_M;
 	// signals
+	reg wrsysen_D, wrsysen_A, wrsysen_M;
 	reg immsig, immsig_A, flush, flushsig,
 		selsysreg_D, selsysreg_A,selsysreg_M,
 		BEQsig_D, BNEsig_D,JMPsig_D,
@@ -140,6 +142,9 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 		selsysreg_A <= selsysreg_D;
 		selsysreg_M <= selsysreg_A;
 
+		wrsysen_A <= wrsysen_D;
+		wrsysen_M <= wrsysen_A;
+
 		if(flush) begin
 			BEQsig_A <= 1'b0;
 			BNEsig_A <= 1'b0;
@@ -151,6 +156,9 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 
 			LWsig_A <= 1'b0;
 			LWsig_M <= 1'b0;
+
+			wrsysen_A <= 1'b0;
+			wrsysen_M <= 1'b0;
 		end
 	end
 
@@ -177,7 +185,8 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	reg IE, OIE, CM, OM;
 	reg [(DBITS-1):0] SIH, SRA, SII, SR0, SR1;
 
-	reg [(DBITS-1):0] sregout_M;
+	always @(posedge clk) begin
+	end
 
 	always @(rregno1_M or IE or OIE or CM or OM or SIH or SRA or SII or SR0 or SR1) begin
 		case(rregno1_M)
@@ -189,6 +198,19 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 			SREG_SR1: sregout_M=SR1;
 			default: sregout_M = 16'hFAFA;
 		endcase
+	end
+
+	always @(posedge clk) begin
+		if(wrsysen_M)
+			case(rregno1_M)
+				SREG_SCS: {OM,CM,OIE,IE}<=regout1_M[3:0];
+				SREG_SIH: SIH<=regout1_M;
+				SREG_SRA: SRA<=regout1_M;
+				SREG_SII: SII<=regout1_M;
+				SREG_SR0: SR0<=regout1_M;
+				SREG_SR1: SR1<=regout1_M;
+				default:;
+			endcase
 	end
 	
 	always @(posedge clk) begin
@@ -208,6 +230,7 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 		wregval_W <= wregval_M;
 
 		rregno1_A <= rregno1;
+		rregno1_M <= rregno1_A;
 		rregno2_A <= rregno2;
 
 		regout1_A <= fregout1_D;
@@ -216,7 +239,6 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 		regout1_M <= fregout1_A;
 		regout2_M <= fregout2_A;
 
-		rregno1_M <= rregno1_A;
 
 		if(flush) begin
 			wrreg_A <= 1'b0;
@@ -404,10 +426,10 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	// You may want to have these values selected in the datapath, and have the control logic just create selection signals
 	// E.g. for aluin2, you could have "assign aluin=regaluin2?regout2:dimm;" in the datapath, then set the "regaluin2" control signal here
 	always @(opcode1 or opcode2 or rdst or rsrc1 or rsrc2 or pcplus or pctarg or fregout1_D or fregout2_D or rregno1 or rsrc1 or
-	dimm or  PC or aluz or pcplus_M or flush or regout1_M or BEQsig_D or BNEsig_D or selsysreg_D or
+	dimm or  PC or aluz or pcplus_M or flush or regout1_M or BEQsig_D or BNEsig_D or selsysreg_D or wrsysen_D or
  	JMPsig_D or BEQsig_M or BNEsig_M or JMPsig_M ) begin
-    {rregno1, aluin2,          alufunc,  wrmem, wregno,    wrreg, nextPC,immsig,flush,BEQsig_D,BNEsig_D,JMPsig_D,LWsig_D}=
-    {rsrc1,   {(DBITS){1'bX}},{4{1'bX}}, 1'b0,  {3{1'bX}}, 1'b0,  pcplus,1'b0,  1'b0, 1'b0,    1'b0,    1'b0,    1'b0};
+	{rregno1, aluin2,          alufunc,   wrmem, wregno,    wrreg, nextPC,immsig,flush,BEQsig_D,BNEsig_D,JMPsig_D,LWsig_D, selsysreg_D, wrsysen_D}=
+	{rsrc1,   {(DBITS){1'bX}}, {4{1'bX}}, 1'b0,  {3{1'bX}}, 1'b0,  pcplus,1'b0,  1'b0, 1'b0,    1'b0,    1'b0,    1'b0,    1'b0,        1'b0};
 	case(opcode1)
 	OP1_ALU:
 		{alufunc,wregno,wrreg}=
@@ -440,7 +462,8 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 				{selsysreg_D,wregno,wrreg}=
 				{1'b1,rdst,1'b1};
 			JMP_WSR:
-				;
+				{wrsysen_D}=
+				{1'b1};
 			default:;
 		endcase
 	default:
