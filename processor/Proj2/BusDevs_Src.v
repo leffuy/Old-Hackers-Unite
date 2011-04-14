@@ -23,8 +23,9 @@ module Memory(IADDR,IOUT,ABUS,RBUS,RE,WBUS,WE,CLK,LOCK,INIT);
 	wire selMem=(ABUS[(ABITS-1):RABITS]=={(ABITS-RABITS){1'b0}});
 	wire wrMem=WE&&selMem;
 	wire rdMem=RE&&selMem;
-	reg [(ABITS-1):0] oldaddr;
+	reg [(ABITS-1):0] oldaddr, out;
 	reg [(WBITS-1):0] oldval;
+	reg writ=1'b0;
 	// Real memory
 	(* ram_init_file = MFILE *) (* ramstyle="no_rw_check" *)
 	reg [(WBITS-1):0] marray[MWORDS];
@@ -32,15 +33,23 @@ module Memory(IADDR,IOUT,ABUS,RBUS,RE,WBUS,WE,CLK,LOCK,INIT);
 		if(INIT) begin
 		end else begin
 			if(wrMem) begin
+				writ <= 1'b1;
 				oldaddr <= ABUS;
 				oldval <= WBUS;
 				marray[ABUS[(RABITS-1):SABITS]]<=WBUS;
 			end
 		end
 	end
-	assign RBUS=(rdMem && oldaddr == ABUS)?oldval:
-		(rdMem)?marray[ABUS[(RABITS-1):SABITS]]:
-		{WBITS{1'bz}};
+	always @(out or marray or rdMem or oldval or oldaddr or ABUS or RABITS or SABITS) begin
+		if(rdMem) begin
+			out = marray[ABUS[(RABITS-1):SABITS]];
+			if(writ && oldaddr == ABUS)
+				out = oldval;
+		end
+		else
+			out = {WBITS{1'bz}};
+	end
+	assign RBUS=out;
 	assign IOUT=
 		(IADDR[(ABITS-1):RABITS]=={(ABITS-RABITS){1'b0}})?
 		marray[IADDR[(RABITS-1):SABITS]]:
