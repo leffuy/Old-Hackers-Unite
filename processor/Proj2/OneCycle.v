@@ -5,7 +5,7 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	output [9:0] LEDR;
 	output [7:0] LEDG;
 	output [6:0] HEX0,HEX1,HEX2,HEX3;
-	`define MEMFILE "Test4.mif"
+	`define MEMFILE "Sorter3.mif"
 
 	wire [6:0] digit0,digit1,digit2,digit3;
 	wire [7:0] ledgreen;
@@ -272,6 +272,7 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	end
 	always @(rregno1_A or rregno2_A or fregout1_A or fregout2_A or wrreg_M or wregno_M or wregval_M 
 		or wrreg_W or wregno_W or wregval_W or regout1_A or regout2_A) begin
+		
 		fregout1_A = regout1_A;
 		fregout2_A = regout2_A;
 		if(wrreg_W) begin
@@ -321,39 +322,23 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	always @(posedge clk)
 		aluout_M <= aluout_A;
 
-	always @(wrreg_M or wregval_M or aluout_M or JMPsig_M or LWsig_M or result_M or pcplus_M or selsysreg_M) begin
+	always @(wrreg_M or wregval_M or aluout_M or JMPsig_M or LWsig_M or result_M or pcplus_M or selsysreg_M or alusig_M) begin
+		wregval_M = (aluout_M & {(DBITS){alusig_M}}) | (result_M & {(DBITS){(LWsig_M | selsysreg_M)}}) | (pcplus_M & {(DBITS){JMPsig_M}});
+		// Using the above for speed reasons. 
+		/*
 		wregval_M = aluout_M;
 		if(LWsig_M || selsysreg_M)		
 			wregval_M = result_M;
 		else if(JMPsig_M)
 			wregval_M = pcplus_M;
+		*/
 	end
 
 
   // Used by control logic for BEQ and BNE (is ALU output zero?)
   //wire aluoutz=(aluout==16'b0);
 
-  reg wrmem;
-	
-  /*reg [(DBITS-1):0] HexOut;
-  SevenSeg ss3(.OUT(digit3),.IN(HexOut[15:12]));
-  SevenSeg ss2(.OUT(digit2),.IN(HexOut[11:8]));
-  SevenSeg ss1(.OUT(digit1),.IN(HexOut[7:4]));
-  SevenSeg ss0(.OUT(digit0),.IN(HexOut[3:0]));
-  	always @(posedge clk)
-		HexOut=inst;
-	always @(posedge clk) begin
-		//LedROut[2:0] = wregno_M;
-		//LedROut[5:3] = rregno1_A;
-		//LedROut[8:6] = rregno2_A;
-		//LedROut = fregout2_A;
-		//LedROut = aluin2_A;
-		LedROut = aluout;
-		//LedROut = aluout[8:0];
-	end
-	*/
-
-	reg wrmem_A, wrmem_M;
+	reg wrmem, wrmem_A, wrmem_M;
 	always @(posedge clk) begin
 		wrmem_A <= wrmem;
 		wrmem_M <= wrmem_A;

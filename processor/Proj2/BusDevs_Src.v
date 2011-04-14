@@ -40,7 +40,7 @@ module Memory(IADDR,IOUT,ABUS,RBUS,RE,WBUS,WE,CLK,LOCK,INIT);
 			end
 		end
 	end
-	always @(out or marray or rdMem or oldval or oldaddr or ABUS or RABITS or SABITS) begin
+	always @(out or marray or rdMem or oldval or oldaddr or ABUS or RABITS or SABITS or writ) begin
 		if(rdMem) begin
 			out = marray[ABUS[(RABITS-1):SABITS]];
 			if(writ && oldaddr == ABUS)
