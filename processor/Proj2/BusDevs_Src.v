@@ -23,17 +23,23 @@ module Memory(IADDR,IOUT,ABUS,RBUS,RE,WBUS,WE,CLK,LOCK,INIT);
 	wire selMem=(ABUS[(ABITS-1):RABITS]=={(ABITS-RABITS){1'b0}});
 	wire wrMem=WE&&selMem;
 	wire rdMem=RE&&selMem;
+	reg [(ABITS-1):0] oldaddr;
+	reg [(WBITS-1):0] oldval;
 	// Real memory
 	(* ram_init_file = MFILE *) (* ramstyle="no_rw_check" *)
 	reg [(WBITS-1):0] marray[MWORDS];
 	always @(posedge CLK) if(LOCK) begin
 		if(INIT) begin
 		end else begin
-			if(wrMem)
+			if(wrMem) begin
+				oldaddr <= ABUS;
+				oldval <= WBUS;
 				marray[ABUS[(RABITS-1):SABITS]]<=WBUS;
+			end
 		end
 	end
-	assign RBUS=rdMem?marray[ABUS[(RABITS-1):SABITS]]:
+	assign RBUS=(rdMem && oldaddr == ABUS)?oldval:
+		(rdMem)?marray[ABUS[(RABITS-1):SABITS]]:
 		{WBITS{1'bz}};
 	assign IOUT=
 		(IADDR[(ABITS-1):RABITS]=={(ABITS-RABITS){1'b0}})?
@@ -108,7 +114,6 @@ module Timer(ABUS,RBUS,RE,WBUS,WE,INTR,CLK,LOCK,INIT);
 			end
 		end
 	end
-	// TODO: Put register values to RBUS when appropriate
 	assign RBUS=rdCtl?{{(DBITS-5){1'b0}},IE,2'b0,Ovr,Rdy}:
 		{DBITS{1'bz}};
 	assign RBUS=rdRes?{{(DBITS-16){1'b0}},TRES}:
@@ -253,15 +258,17 @@ module SwDev(ABUS,RBUS,RE,WBUS,WE,INTR,CLK,LOCK,INIT,SW);
 			{Rdy,Ovr,IE}<=3'b000;
 		end
 		else begin
-			if(!counter) begin
-				val <= prev;
-				if(Rdy)
-					Ovr <= 1'b1;
-				Rdy <= 1'b1;
+			if(prev != val) begin
+				if(!counter) begin
+					val <= prev;
+					if(Rdy)
+						Ovr <= 1'b1;
+					Rdy <= 1'b1;
+				end
+				else
+					counter <= counter - 1'b1;
 			end
-			else
-				counter <= counter - 1'b1;
-			if(prev != SW) begin
+			else if(prev != SW) begin
 				counter <= DEBN;
 				prev <= SW;
 			end
