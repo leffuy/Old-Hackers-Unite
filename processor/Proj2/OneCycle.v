@@ -5,7 +5,7 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	output [9:0] LEDR;
 	output [7:0] LEDG;
 	output [6:0] HEX0,HEX1,HEX2,HEX3;
-	`define MEMFILE "SYStest.mif"
+	`define MEMFILE "Test4mod.mif"
 
 	wire [6:0] digit0,digit1,digit2,digit3;
 	wire [7:0] ledgreen;
@@ -29,10 +29,13 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	reg init = 1'b0;
 	always @(posedge clk) if(lock) init<=1'b1;
 
-	always @(posedge clk) if(lock && init) begin
-			PC <= nextPC;
-		if(intreq)
+	always @(posedge clk) if(lock) begin
+		if(!init)
+			PC <= 16'h200;
+		else if(intreq)
 			PC <= SIH;
+		else
+			PC <= nextPC;
 	end
 
 	wire [(DBITS-1):0] pcplus=PC+16'd2;
@@ -209,7 +212,7 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	end
 	
 	always @(posedge clk) begin
-		if(!init) // We don't want any unintended side effects, might be a faster way
+		if(!lock) // We don't want any unintended side effects, might be a faster way
 			wrreg_A <= 0;
 		else
 			wrreg_A <= wrreg;
@@ -309,7 +312,7 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	always @(posedge clk)
 		aluout_M <= aluout_A;
 
-	always @(wrreg_M or wregval_M or aluout_M or JMPsig_M or LWsig_M or result_M or pcplus_M) begin
+	always @(wrreg_M or wregval_M or aluout_M or JMPsig_M or LWsig_M or result_M or pcplus_M or selsysreg_M) begin
 		wregval_M = aluout_M;
 		if(LWsig_M || selsysreg_M)		
 			wregval_M = result_M;
@@ -369,8 +372,10 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	// restmp_M contains the register value from the ALU stage
 	// We simply treat it as one of the possible sources for the
 	// value on the rbus, driving the rbus only if this is not a LW
-	assign rbus=(alusig_M)?aluout_M:{DBITS{1'bz}};
-	assign rbus=(selsysreg_M)?sregout_M:{DBITS{1'bz}};
+	assign rbus=(alusig_M)?aluout_M:
+		(selsysreg_M)?sregout_M:
+		{DBITS{1'bz}};
+	//assign rbus=(selsysreg_M)?sregout_M:{DBITS{1'bz}};
 
 	Memory #(.ABITS(DBITS),.RABITS(13),.SABITS(1),
 		.WBITS(DBITS),.MFILE(`MEMFILE))
@@ -452,9 +457,10 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	// E.g. for aluin2, you could have "assign aluin=regaluin2?regout2:dimm;" in the datapath, then set the "regaluin2" control signal here
 	always @(opcode1 or opcode2 or rdst or rsrc1 or rsrc2 or pcplus or pctarg or fregout1_D or fregout2_D or rregno1 or rsrc1 or
 	dimm or  PC or aluz or pcplus_M or flush or regout1_M or BEQsig_D or BNEsig_D or selsysreg_D or wrsysen_D or IE or intr or alusig_D or
- 	JMPsig_D or BEQsig_M or BNEsig_M or JMPsig_M ) begin
+ 	JMPsig_D or BEQsig_M or BNEsig_M or JMPsig_M or init ) begin
 	{rregno1, aluin2,          alufunc,   wrmem, wregno,    wrreg, nextPC,immsig,flush,BEQsig_D,BNEsig_D,JMPsig_D,LWsig_D, selsysreg_D, wrsysen_D, alusig_D}=
 	{rsrc1,   {(DBITS){1'bX}}, {4{1'bX}}, 1'b0,  {3{1'bX}}, 1'b0,  pcplus,1'b0,  1'b0, 1'b0,    1'b0,    1'b0,    1'b0,    1'b0,        1'b0,      1'b0};
+	if(init) begin
 	case(opcode1)
 	OP1_ALU:
 		{alusig_D,alufunc,wregno,wrreg}=
@@ -473,7 +479,7 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 		{dimm,ALU_ADD,rsrc2,1'b1,1'b1,1'b1};
 	OP1_SW:
 		{aluin2,alufunc,wrmem,immsig} =
-		{dimm,ALU_ADD,1'b1,1'b1};
+		{dimm,ALU_ADD,init,1'b1};
 	OP1_JMP: 
 		case(opcode2)
 			JMP_JRL:
@@ -516,6 +522,7 @@ module OneCycle(SW,KEY,LEDR,LEDG,HEX0,HEX1,HEX2,HEX3,CLOCK_50);
 	// Interrupts
 	if(IE && intr) begin
 		flush = 1'b1;
+	end
 	end
   end
 
