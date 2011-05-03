@@ -1,0 +1,357 @@
+        ; Addresses of I/O device registers (memory-mapped)
+        .ORIG 0xFFE0
+TCNT:
+        .ORIG 0xFFE2
+TRES:
+        .ORIG 0xFFE4
+TCTL:
+        .ORIG 0xFFF4
+KCTL:
+        .ORIG 0xFFF0
+KDATA:
+        .ORIG 0xFFF6
+SCTL:
+        .ORIG 0xFFF2
+SDATA:
+        .ORIG 0xFFF8
+HEX:
+        .ORIG 0xFFFA
+LEDR:
+        .ORIG 0xFFFC
+LEDG:
+
+	; All variables (for the System, Clock, and Sorter) go here,
+	; so we can LW/SW using a zero in a register and label as offset
+.ORIG	0
+	; Put the System variables here
+
+	; Now the actual system variables
+IntHandAddr:
+.DATA 	IntHand
+SysStackAddr:
+.DATA	SysStack
+SorterCodeAddr:
+.DATA	SorterCode
+ValSYSC:
+.DATA	0xC00F
+
+	; Put the Clock variables here
+
+
+	; These are the Sorter variables
+StkAddr:
+.DATA	8192	; Stack begins at the very top of memory
+ArrAddr:
+.DATA   Array   ; Array begins at the end of the code
+ArrBytes:
+.DATA   1024	; The array has 512 elements (1024 bytes)
+SortAscP:
+.DATA	SortAsc	; Address of the SortAsc function
+SortDescP:
+.DATA	SortDesc; Address of the SortDesc function
+ChkAscP:
+.DATA	ChkAsc 	; Address of the ChkAsc function
+ChkDescP:
+.DATA	ChkDesc ; Address of the ChkDesc function
+ItNum:
+.DATA	7680	; Number of iterations for the main loop
+
+	; The system stack grows down from 0x200
+	; Note that it only has a small amount of space
+	; before it starts overwriting the variables
+.ORIG	0x200
+SysStack:
+
+	; Now all the code, starting at address 0x200
+.ORIG	0x200
+	; Zero out GP
+	XOR	GP,GP,GP
+	; Set up the interrupt handler
+	LW	A0,IntHandAddr(GP)
+	WSR	SIH,A0
+	; Set up the system stack (in SR0)
+	LW	A0,SysStackAddr(GP)
+	WSR	SR0,A0
+	; TODO: Clock initialization (just make sure GP as 0 when done)
+
+	; Now enable interrupts, switch to user mode, and jump to Sorter
+	ADDI	A0,GP,3
+	WSR	SCS,A0
+	LW	RA,SorterCodeAddr(GP)
+	JRL	RA,(RA)
+
+	; Should never come back here (Sorter never returns)
+SortRet:
+	ADDI	A0,GP,0xFFF0
+	ADDI	RV,GP,1
+	SYSC
+	ADDI	A0,GP,-1
+	ADDI	RV,GP,2
+	SYSC
+	BEQ 	R0,R0,SortRet
+
+	; This is our interrupt handler code
+IntHand:
+	; Save user SP in SR1, switch to system SP (in SR0)
+	WSR	SR1,SP
+	RSR	SP,SR0
+	; Save all registers used by the interrupt handler
+	ADDI	SP,SP,-4
+	SW	A0,0(SP)
+	SW	A1,2(SP)
+	; TODO: Save other registers (and restore later)
+	; Get SII, see if we have a syscall or real interrupt
+	RSR	A0,SII
+	BNE	A0,GP,RealInt	; Not syscall if SII!=0
+	RSR	A1,SRA
+	LW	A1,0(A1)
+	LW	A2,ValSYSC(GP)
+	BNE	A1,A2,RealInt	; Not syscall if MEM[SRA]!=ValSYSC
+	; OK, this is a syscall, see which one
+	ADDI	A1,GP,1
+	BNE	RV,A1,NotWrHEX
+	; This is the WrHEX system call
+	; Get saved A0 from stack, this is what Sorter wants on HEX
+	LW	A0,0(SP)
+	; TODO: Don't just display it here
+	SW	A0,HEX(GP)
+	; Return 0 (success) 
+	ADDI	RV,GP,0
+	BEQ	R0,R0,RetSYSC
+NotWrHEX:
+	ADDI	A1,GP,2
+	BNE	RV,A1,NotWrLEDR
+	; Get saved A0 from stack, this is what Sorter wants on LEDR
+	LW	A0,0(SP)
+	; TODO: Don't just disply it here
+	SW	A0,LEDR(GP)
+	ADDI	RV,GP,0
+	BEQ	R0,R0,RetSYSC	
+NotWrLEDR:
+	ADDI	A1,GP,3
+	BNE	RV,A1,NotWrLEDG
+	; Get saved A0 from stack, this is what Sorter wants on LEDG
+	LW	A0,0(SP)
+	; TODO: Don't just display it here
+	SW	A0,LEDG(GP)
+	ADDI	RV,GP,0
+	BEQ	R0,R0,RetSYSC	
+NotWrLEDG:
+	; Invalid system call - return -1
+	ADDI	RV,GP,-1
+RetSYSC:
+	; Change return address to the one after SYSC
+	RSR	A0,SRA
+	ADDI	A0,A0,2
+	WSR	SRA,A0
+	; Restore registers (except RV) from stack
+	LW	A0,0(SP)
+	LW	A1,2(SP)
+	ADDI	SP,SP,4
+	; Switch back to user stack and return
+	WSR	SR0,SP
+	RSR	SP,SR1
+	RETI
+RealInt:
+	; TODO: Handle non-SYSC interrupts and exceptions
+
+	; This is the sorter code
+SorterCode:
+	XOR	GP,GP,GP	; GP is hold value zero
+	LW	SP,StkAddr(GP)	; Make SP point to stack
+
+	; Initialize the array
+	LW	A0,ArrAddr(GP)  ; A0 is CurPtr, set to start of array
+	LW	A1,ArrBytes(GP)
+	ADD	A1,A0,A1	; A1 is EndPtr, set to end of array
+	; Array elements will be 50, 53, 56, etc.
+	ADDI	A2,GP,50	; A2 is 50
+Init:
+	SW	A2,0(A0)	; Store value into an element
+	ADDI	A2,A2,3		; Add 3 to the value for next element
+	ADDI	A0,A0,2		; Move to next element
+	BNE	A0,A1,Init	; if(CurPtr!=EndPtr) goto Init;
+
+	LW	RA,ChkAscP(GP)	; Address of ChkAsc
+	JRL	RA,(RA)		; Call ChkAsc
+
+	LW	A0,ItNum(GP)	; Count iterations in A0
+	ADDI	SP,SP,-2	; Allocate a word on the stack
+MainLoop:
+	; Loop counter is in A0, show it on HEX
+	ADDI	RV,GP,1		; System call 1 - write to HEX
+	SYSC
+	SW	A0,0(SP)	; Save loop counter
+
+	LW	A0,ArrAddr(GP)  ; A0 is CurPtr, set to start of array
+	LW	A1,ArrBytes(GP)
+	ADD	A1,A0,A1	; A1 is EndPtr, set to end of array
+	ADDI	A2,GP,1
+	ADDI	RV,GP,2
+	LW	RA,SortDescP(GP); Address of SortDesc
+	JRL	RA,(RA)		; Call SortDesc
+	ADDI	A2,GP,3
+	BEQ	A2,RV,SDPass
+SDErr:
+        ADDI    A0,GP,0x1D	; Put 001D on HEX
+	ADDI	RV,GP,1
+        SYSC
+        ADDI    A0,GP,-1        ; Put all-ones on LEDR
+	ADDI	RV,GP,2
+	SYSC
+        BEQ     R0,R0,SDErr 	; Loop forever
+SDPass:
+	LW	RA,ChkDescP(GP)	; Address of ChkDesc
+	JRL	RA,(RA)		; Call ChkDesc
+
+	LW	A0,ArrAddr(GP)  ; A0 is CurPtr, set to start of array
+	LW	A1,ArrBytes(GP)
+	ADD	A1,A0,A1	; A1 is EndPtr, set to end of array
+	LW	RA,SortAscP(GP)	; Address of SortAsc
+	JRL	RA,(RA)		; Call SortDesc
+
+	LW	RA,ChkAscP(GP)	; Address of ChkAsc
+	JRL	RA,(RA)		; Call ChkAsc
+
+	LW	A0,0(SP)	; Restore loop counter
+	ADDI	A0,A0,-1
+	BNE	A0,GP,MainLoop
+
+	ADDI	SP,SP,2		; Deallocate the word we allocated
+
+Done:
+	ADDI	A0,GP,-1	; Put all-ones on LEDG
+	ADDI	RV,GP,3
+	SYSC
+	BEQ	R0,R0,Done	; Loop forever
+
+ChkAsc:
+	ADDI	SP,SP,-2
+	SW	RA,0(SP)	; Save RA
+	; Verify that array is sorted in ascending order
+	LW	A0,ArrAddr(GP)  ; A0 is CurPtr, set to start of array
+	LW	A1,ArrBytes(GP)
+	ADD	A1,A0,A1	; A1 is EndPtr, set to end of array
+	; Array elements should be 50, 53, 56, etc.
+	ADDI	A2,GP,50	; A2 is 50
+CheckAsc:
+	LW	RA,0(A0)
+	BEQ	RA,A2,ContChkA
+ErrChkA:
+	ADDI	A0,GP,0xA	; Put 000A on HEX
+	ADDI	RV,GP,1
+	SYSC
+	ADDI	A0,GP,-1	; Put all-ones on LEDR
+	ADDI	RV,GP,2
+	SYSC
+	BEQ 	R0,R0,ErrChkA	; Loop forever
+ContChkA:
+	ADDI	A2,A2,3
+	ADDI	A0,A0,2
+	BNE	A0,A1,CheckAsc
+DoneChkA:
+	LW	RA,0(SP)	; Restore RA
+	ADDI	SP,SP,2
+	JRL	RA,(RA)		; Return (and destroy RA)
+
+ChkDesc:
+	ADDI	SP,SP,-2
+	SW	RA,0(SP)	; Save RA
+	; Verify that array is sorted in descending order
+	LW	A1,ArrAddr(GP)  ; A1 is EndPtr, set to start of array
+	LW	A0,ArrBytes(GP)
+	ADD	A0,A1,A0	; A0 is CurPtr, set to end of array
+	; Array elements should be 50, 53, 56, etc. starting from the end
+	ADDI	A2,GP,50	; A2 is 50
+CheckDesc:
+	BEQ	A0,A1,DoneChkD
+	ADDI	A0,A0,-2
+	LW	RA,0(A0)
+	BEQ	RA,A2,ContChkD
+ErrChkD:
+	ADDI	A0,GP,0xD	; Put 000D on HEX
+	ADDI	RV,GP,1
+	SYSC
+	ADDI	A0,GP,-1	; Put all-ones on LEDR
+	ADDI	RV,GP,2
+	SYSC
+	BEQ 	R0,R0,ErrChkD	; Loop forever
+ContChkD:
+	ADDI	A2,A2,3
+	BEQ	R0,R0,CheckDesc	; goto CheckDesc;
+DoneChkD:
+	LW	RA,0(SP)	; Restore RA
+	ADDI	SP,SP,2
+	JRL	RA,(RA)		; Return (and destroy RA)
+
+SortAsc:; SortAsc(beg,end)
+        ; Sorts an array that starts at beg and ends at end
+        ; Sorts in ascending order (low to high values)
+	ADDI	SP,SP,-4
+	SW	RA,0(SP)
+	SW	A1,2(SP)
+	; The sorting strategy is immediate-swap selection sort
+	; Outer loop (ptr in A0) goes from start to end
+SALoopI:
+        BEQ     A0,A1,SAEndI
+	; Inner loop (ptr in RA) goes from A0+2 to end
+        ADDI    RA,A0,2
+SALoopJ:  
+        BEQ     RA,A1,SAEndJ
+	; Compare elements pointed to by A0 and RA
+	; Note that we clobber A1 here
+        LW      A1,0(A0)
+        LW      A2,0(RA)
+        LE      A3,A1,A2	; No swap if A1<=A2
+        BNE     A3,GP,SANoSwap
+	SW	A1,0(RA)
+	SW	A2,0(A0)
+SANoSwap:
+	LW	A1,2(SP)	; Reload end ptr into A1
+	ADDI	RA,RA,2		; Advance inner loop ptr
+	BEQ	R0,R0,SALoopJ
+SAEndJ:
+	ADDI	A0,A0,2
+	BEQ	R0,R0,SALoopI
+SAEndI:
+	LW	RA,0(SP)
+	; No need to restore A1
+	ADDI	SP,SP,4
+	JRL	RA,(RA)
+
+SortDesc:; SortDesc(beg,end)
+        ; Sorts an array that starts at beg and ends at end
+        ; Sorts in descending order (high to low values)
+	ADDI	SP,SP,-4
+	SW	RA,0(SP)
+	SW	A1,2(SP)
+	; The sorting strategy is immediate-swap selection sort
+	; Outer loop (ptr in A0) goes from start to end
+SDLoopI:
+        BEQ     A0,A1,SDEndI
+	; Inner loop (ptr in RA) goes from A0+2 to end
+        ADDI    RA,A0,2
+SDLoopJ:  
+        BEQ     RA,A1,SDEndJ
+	; Compare elements pointed to by A0 and RA
+	; Note that we clobber A1 here
+        LW      A1,0(A0)
+        LW      A2,0(RA)
+        LE      A3,A2,A1	; No swap if A1>=A2
+        BNE     A3,GP,SDNoSwap
+	SW	A1,0(RA)
+	SW	A2,0(A0)
+SDNoSwap:
+	LW	A1,2(SP)	; Reload end ptr into A1
+	ADDI	RA,RA,2		; Advance inner loop ptr
+	BEQ	R0,R0,SDLoopJ
+SDEndJ:
+	ADDI	A0,A0,2
+	BEQ	R0,R0,SDLoopI
+SDEndI:
+	LW	RA,0(SP)
+	; No need to restore A1
+	ADDI	SP,SP,4
+	ADDI	RV,GP,3
+	JRL	RA,(RA)
+Array:

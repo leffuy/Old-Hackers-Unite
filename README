@@ -5,3 +5,54 @@ This is the first change.
 
 
 ==Assembler Briefing==
+To use: $./assebmler --file inputfile.a16 --out outfile.mif
+
+What the assembler does is it decodes the instructions into
+16b binary instructions that the compiler (quartus) can use
+to program the Altera DE1 board. It takes an assembly file
+that we have created and spits out a specially encoded "mif"
+file.
+
+The mif file is just plain text and is easy to read with any
+text editor(vim yay!). If you look in the OneCycle.v file,
+quartus uses the mif file to load instructions when the board
+starts up.
+
+
+==About the Processor==
+So the board is equipped with 8 green leds, 10 red leds, 4 hex
+displays, 10 toggle switches, and 4 pressable keys. These can
+all be accessed through special memory mapped I/O addresses.
+
+LW from address 0xFFF0 reads KEY state
+LW from address 0xFFF2 reads SW state
+SW to address 0xFFF8 displays value on HEX display
+SW to address 0xFFFA changes LEDR
+SW to address 0xFFFC changes LEDG
+
+There also several special registers. These can be loaded and
+stored to using WSR and RSR instructions. The special registers
+are used to store things like: user or system mode, where to
+jump to on interrupts, and such.
+
+Finally, there is a timer that can be used to interrupt the
+processor after a certain count down.
+
+
+==Let Us Begin the Project==
+We will be working with the Sorter5.a16 file for this project.
+It is located in the programs folder.
+
+Apparently, there are further instructions in the lecture pdf
+that I have supplied via email. I haven't looked into this project
+much but from what I understand, he wants us to have two programs
+running simulatenously: a clock program, and the sorter program
+that is supplied to us. The two threads will basically be switched
+back and forth using the timer as a round-robin interrupt device.
+
+We shall look into this further. Hopefully this gives you an idea
+of what to expect if you wish to continue with this assignment.
+It is going to take a lot of man power. You may even question
+your ability to think like a functioning member of society before the
+end of this project. Beware and good luck.
+
