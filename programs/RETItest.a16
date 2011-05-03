@@ -1,0 +1,26 @@
+
+.ORIG 0x0
+jmpval:
+.DATA goto
+
+.ORIG 0x200
+XOR GP,GP,GP
+ADDI R0,GP,-1
+
+LW R1,jmpval(GP)
+SW R1,-8(GP)
+JRL RA,(R1)
+
+SW R0,-4(GP)
+loop:
+	BEQ GP,GP,loop
+
+goto:
+	RETI
+
+	SW R0,-6(GP)
+loopfail:
+	BEQ GP,GP,loop
+	
+	
+		

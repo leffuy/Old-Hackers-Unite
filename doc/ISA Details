@@ -21,7 +21,9 @@ Primary OP codes:
 
 Secondary OP codes:
 	0000	ADD, JRL
-	0001	SUB
+	0001	SUB, RETI
+	0010	RSR (JMP only)
+	0011	WSR (JMP only)
 	0100	LT
 	0101	LE
 	1000	AND
