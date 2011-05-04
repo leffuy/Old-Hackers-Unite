@@ -38,6 +38,9 @@ TimeInc2:	; Amount to increase HEXTime by on overflow of 2nd digit
 .DATA	0xA0	; Can also be used for OvrD2
 TimeInc3:	; Amount to increase HEXTime by on overflow of 3nd digit
 .DATA	0x600
+TimeInc1:       ; Increment digit 1
+.DATA   0x006   
+
 
 .ORIG 0x200
 SysStack:	; System stack grows down from 0x200
