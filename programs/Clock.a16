@@ -1,0 +1,22 @@
+; LEDGs will display the seconds of the clock
+; so let us work on incrementing a counter
+; using the timer.
+
+; We use these variables to lw/sw to
+; the hex display
+	.ORIG 0xFFF8
+HEX:
+        .ORIG 0xFFFC
+LEDG:
+
+.ORIG 0x0	; Variables for clock go here
+
+SECONDS:
+.DATA	0
+
+
+.ORIG 0x200
+	XOR	GP,GP,GP	; Zero out GP
+
+done:				; Loop forever
+	BEQ	R0,R0,done

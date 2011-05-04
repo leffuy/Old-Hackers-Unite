@@ -1,0 +1,30 @@
+; We use these variables to lw/sw to
+; the hex display
+	.ORIG 0xFFF8
+HEX:
+        .ORIG 0xFFFC
+LEDG:
+
+
+; Let me show you how the assembly works
+; and how we can change the HEX and LEDG:
+.ORIG 0x200	; Our processor starts executing at mem loc 0x200
+	XOR	GP,GP,GP	; Zero out GP
+	ADDI	A0,GP,-1	; Put all ones in A0
+	SW	A0,LEDG(GP)	; This will switch
+				; on all the green leds. Cool huh?
+
+	ADDI	A0,GP,10	; Let's store A into the first Hex display
+				; Unfortunately, hex is not supported by
+				; the assembler...
+	SW	AO,HEX(GP)	; Stores 000A into the hex displays
+				; Another thing to note is that
+				; the immediate is only 7 bits long
+				; and is signed... This means we
+				; can't do something like:
+				; ADDI AO,GP,1000
+
+done:				; A label named done.
+	BEQ	R0,R0,done	; This will R0 XOR R0 and if 0, go
+				; to done. Since any number XOR any
+				; number is always 0, it loops forever!
