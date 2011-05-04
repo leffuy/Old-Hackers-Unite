@@ -3,20 +3,58 @@
 ; using the timer.
 
 ; We use these variables to lw/sw to
-; the hex display
+; change the displays
 	.ORIG 0xFFF8
 HEX:
         .ORIG 0xFFFC
 LEDG:
 
-.ORIG 0x0	; Variables for clock go here
-
+.ORIG 0x0	; Variables for clock go here. These
+		; are stored in memory and can be
+		; indexed into by doing:
+		; LW R*,
+IntHandAddr:
+.DATA   IntHand
+SysStackAddr:
+.DATA   SysStack
 SECONDS:
 .DATA	0
 
-
 .ORIG 0x200
+SysStack:	; System stack grows down from 0x200
+
+.ORIG 0x200	; Init interrupts and timer of clock
 	XOR	GP,GP,GP	; Zero out GP
+	; Set up the interrupt handler
+	LW	A0,IntHandAddr(GP)
+	WSR	SIH,A0
+	; Set up the system stack
+	LW	A0,SysStackAddr(GP)
+	WSR	SR0,A0
+
+	; TODO: setup the timer device to interrupt every 100ms...
 
 done:				; Loop forever
 	BEQ	R0,R0,done
+
+	; interrupt handler for the clock
+IntHand:
+	; Save user SP in SR1, switch to system SP (in SR0)
+	WSR	SR1,SP
+	RSR	SP,SR0
+	; Save all registers used by the interrupt handler
+	ADDI	SP,SP,-4
+	SW	A0,0(SP)
+	SW	A1,2(SP)
+
+	; TODO: Increment seconds, etc here.
+
+	; Restore registers (except RV) from stack
+	LW	A0,0(SP)
+	LW	A1,2(SP)
+	ADDI	SP,SP,4
+	; Switch back to user stack and return
+	WSR	SR0,SP
+	RSR	SP,SR1
+	RETI
+
