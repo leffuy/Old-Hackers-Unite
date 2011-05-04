@@ -2,8 +2,12 @@
 ; so let us work on incrementing a counter
 ; using the timer.
 
-; We use these variables to lw/sw to
-; change the displays
+	.ORIG 0xFFE0
+TCNT:
+	.ORIG 0xFFE2
+TRES:
+	.ORIG 0xFFE4
+TCTL:
 	.ORIG 0xFFF8
 HEX:
         .ORIG 0xFFFC
@@ -17,15 +21,18 @@ IntHandAddr:
 .DATA   IntHand
 SysStackAddr:
 .DATA   SysStack
-SECONDS:
+Seconds:
 .DATA	0
-HEXTIME:
+HEXTime:
 .DATA	0x1200
+SecCnt:
+.DATA	1000	; Number of TCNT ticks in 1s
 
 .ORIG 0x200
 SysStack:	; System stack grows down from 0x200
 
-.ORIG 0x200	; Init interrupts and timer of clock
+.ORIG 0x200
+	; Init interrupts and timer of clock
 	XOR	GP,GP,GP	; Zero out GP
 	; Set up the interrupt handler
 	LW	A0,IntHandAddr(GP)
@@ -34,13 +41,19 @@ SysStack:	; System stack grows down from 0x200
 	LW	A0,SysStackAddr(GP)
 	WSR	SR0,A0
 
-	; TODO: setup the timer device to interrupt every 100ms...
-	
-	; Testing loading the variables...
-	LW	A0,HEXTIME(GP)
-	SW	AO,HEX(GP)	; Sweet! successfully displays 1200 on the displays!
+	; Setup the timer device to interrupt every 1s
+	; Set IE, CM to 1 and OM, OIE to 0
+	ADDI	A0,GP,5
+	WSR	SCS,A0
+	; Set IE in TCTL
+	ADDI	A0,GP,0x10
+	SW	A0,TCTL(GP)
+	; Set TCNT to interrupt every second
+	LW	A0,SecCnt(GP)
+	SW	A0,TRES(GP)
+	SW	A0,TCNT(GP)
 
-done:				; Loop forever
+done:	; Loop forever here while not dealing with timer interrupt
 	BEQ	R0,R0,done
 
 	; interrupt handler for the clock
@@ -53,7 +66,10 @@ IntHand:
 	SW	A0,0(SP)
 	SW	A1,2(SP)
 
-	; TODO: Increment seconds, etc here.
+	; Increment seconds
+	LW	A0,Seconds(GP)
+	ADDI	A0,A0,1
+	SW	A0,LEDG(GP)
 
 	; Restore registers (except RV) from stack
 	LW	A0,0(SP)
