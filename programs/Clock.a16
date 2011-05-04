@@ -30,8 +30,12 @@ FMask2:		; Mask used for second digit
 .DATA	0x0F0
 FMask3:		; Mask for third digit
 .DATA	0xF00
+OvrD3:
+.DATA	0x0A00
+OvrD4:
+.DATA	0x2400
 TimeInc2:	; Amount to increase HEXTime by on overflow of 2nd digit
-.DATA	0xA0
+.DATA	0xA0	; Can also be used for OvrD2
 TimeInc3:	; Amount to increase HEXTime by on overflow of 3nd digit
 .DATA	0x600
 
