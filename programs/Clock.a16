@@ -86,8 +86,29 @@ IntHand:
 	ADDI	A1,GP,60
 	BNE	A1,A0,skip
 
+HandleInc1: 
+	LW A3,HEXTime(GP)
+        ADDI A3,GP,0x0001 
+        AND A3,A3,FMask1
+        ADDI A2,GP,0x000A 
+        BEQ A3,A2,IncrementMe 
+	LW A3,HEXTime(GP) 
+        ADDI A3,GP,0x0001 
+        SW A3,HEXTime(GP) 
+
+IncrementMe1:
+	LW A3,HEXTime(GP) 
+	ADDI A3,GP,TimeInc1 
+	SW A3,HEXTime(GP) 
+
+
+
 	; TODO: Here is where we are going to have to inc HEXTIME, check for digits etc
 	; This will work I think. It is going to need a lot of branches though ahaha	
+
+
+
+
 
 skip:	SW	A0,LEDG(GP)
 	SW	A0,Seconds(GP)
