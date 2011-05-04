@@ -1,0 +1,28 @@
+;Lets see how this works for digit 1
+
+;Copy-paste code that's subbed may need some variable renaming
+
+;assume you have branched due to overflow on seconds
+
+;This will increment digit 1
+;Okay so I'm pretty acclimated this is the final test
+;Let me know if these subroutines work, and if they don't what I need to 
+;change syntactically cause the idea is here
+HandleInc1:  ;rename if needed
+	LW A3,HEXTime(GP) ;get the current time on the hex thingie
+        ADDI A3,GP,0x0001 ;Add 1 to that time and see what happens
+        AND A3,A3,FMask1 ;Isolate last digit.
+        ADDI A2,GP,0x000A ;Add the check values into the register A2 seems free
+        BEQ A3,IncrementMe ;If A3, our isolated digit, == A, branch to cascade
+	LW A3,HEXTime(GP) ;Easier to reload the value
+        ADDI A3,GP,0x0001 ;Increment without cascading 
+        SW A3,HEXTime(GP) ;Write Back
+;return to caller wait for next 60 seconds
+
+IncrementMe1: ;this starts the cascading process
+	LW A3,HEXTime(GP) ;load original last step time from
+	ADDI A3,GP,TimeInc1 ;increment that bitch
+	SW A3,HEXTime(GP) ;store back to memory
+
+
+
