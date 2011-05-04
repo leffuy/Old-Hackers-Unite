@@ -13,22 +13,17 @@ HEX:
         .ORIG 0xFFFC
 LEDG:
 
-.ORIG 0x0	; Variables for clock go here. These
-		; are stored in memory and can be
-		; indexed into by doing:
-		; LW R*,
-IntHandAddr:
+.ORIG 0x0	; Variables for clock go here.
+IntHandAddr:	; Pointer to interrupt handler
 .DATA   IntHand
 SysStackAddr:
 .DATA   SysStack
 Seconds:
-.DATA	0x0
-SecAddr:
-.DATA	Seconds
+.DATA	0
 HEXTime:
 .DATA	0x1200
 SecCnt:
-.DATA	1000	; Number of TCNT ticks in 1s
+.DATA	10000	; Number of TCNT ticks in 1s
 
 .ORIG 0x200
 SysStack:	; System stack grows down from 0x200
@@ -53,7 +48,6 @@ SysStack:	; System stack grows down from 0x200
 	; Set TCNT to interrupt every second
 	LW	A0,SecCnt(GP)
 	SW	A0,TRES(GP)
-	SW	A0,TCNT(GP)
 
 done:	; Loop forever here while not dealing with timer interrupt
 	BEQ	R0,R0,done
@@ -71,8 +65,16 @@ IntHand:
 	; Increment Seconds static variable update LEDG
 	LW	A0,Seconds(GP)
 	ADDI	A0,A0,1
-	SW	A0,LEDG(GP)
-	SW	A0,SecAddr(GP)	; This is not storing the incremented val for some reason.
+
+	ADDI	A1,GP,60
+	BNE	A1,A0,skip
+
+	; TODO: Here is where we are going to have to inc HEXTIME, check for digits etc
+	; This will work I think. It is going to need a lot of branches though ahaha	
+
+skip:	SW	A0,LEDG(GP)
+	SW	A0,Seconds(GP)
+	; TODO: Update HEX Display...
 
 	; Restore registers (except RV) from stack
 	LW	A0,0(SP)
