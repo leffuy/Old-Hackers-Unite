@@ -19,6 +19,8 @@ SysStackAddr:
 .DATA   SysStack
 SECONDS:
 .DATA	0
+HEXTIME:
+.DATA	0x1200
 
 .ORIG 0x200
 SysStack:	; System stack grows down from 0x200
@@ -33,6 +35,10 @@ SysStack:	; System stack grows down from 0x200
 	WSR	SR0,A0
 
 	; TODO: setup the timer device to interrupt every 100ms...
+	
+	; Testing loading the variables...
+	LW	A0,HEXTIME(GP)
+	SW	AO,HEX(GP)	; Sweet! successfully displays 1200 on the displays!
 
 done:				; Loop forever
 	BEQ	R0,R0,done
