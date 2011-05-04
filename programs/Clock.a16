@@ -24,6 +24,8 @@ HEXTime:	; Holds the 24h time in hex
 .DATA	0x1200
 SecCnt:		; Number of TCNT ticks in 1s
 .DATA	1000
+FMask1:		; Mask for first digit
+.DATA   0x00F
 FMask2:		; Mask used for second digit
 .DATA	0x0F0
 FMask3:		; Mask for third digit
