@@ -19,11 +19,11 @@ IntHandAddr:	; Pointer to interrupt handler
 SysStackAddr:
 .DATA   SysStack
 Seconds:
-.DATA	0
+.DATA	2
 HEXTime:
 .DATA	0x1200
 SecCnt:
-.DATA	10000	; Number of TCNT ticks in 1s
+.DATA	1000	; Number of TCNT ticks in 1s
 
 .ORIG 0x200
 SysStack:	; System stack grows down from 0x200
@@ -75,6 +75,10 @@ IntHand:
 skip:	SW	A0,LEDG(GP)
 	SW	A0,Seconds(GP)
 	; TODO: Update HEX Display...
+	
+	; Reset Interrupts for timer
+	ADDI	A0,GP,0x10
+	SW	A0,TCTL(GP)
 
 	; Restore registers (except RV) from stack
 	LW	A0,0(SP)
