@@ -22,7 +22,9 @@ IntHandAddr:
 SysStackAddr:
 .DATA   SysStack
 Seconds:
-.DATA	0
+.DATA	0x0
+SecAddr:
+.DATA	Seconds
 HEXTime:
 .DATA	0x1200
 SecCnt:
@@ -66,10 +68,11 @@ IntHand:
 	SW	A0,0(SP)
 	SW	A1,2(SP)
 
-	; Increment seconds
+	; Increment Seconds static variable update LEDG
 	LW	A0,Seconds(GP)
 	ADDI	A0,A0,1
 	SW	A0,LEDG(GP)
+	SW	A0,SecAddr(GP)	; This is not storing the incremented val for some reason.
 
 	; Restore registers (except RV) from stack
 	LW	A0,0(SP)
