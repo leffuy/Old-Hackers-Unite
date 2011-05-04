@@ -18,12 +18,20 @@ IntHandAddr:	; Pointer to interrupt handler
 .DATA   IntHand
 SysStackAddr:
 .DATA   SysStack
-Seconds:
-.DATA	2
-HEXTime:
+Seconds:	; Holds the current seconds value
+.DATA	0
+HEXTime:	; Holds the 24h time in hex
 .DATA	0x1200
-SecCnt:
-.DATA	1000	; Number of TCNT ticks in 1s
+SecCnt:		; Number of TCNT ticks in 1s
+.DATA	1000
+FMask2:		; Mask used for second digit
+.DATA	0x0F0
+FMask3:		; Mask for third digit
+.DATA	0xF00
+TimeInc2:	; Amount to increase HEXTime by on overflow of 2nd digit
+.DATA	0xA0
+TimeInc3:	; Amount to increase HEXTime by on overflow of 3nd digit
+.DATA	0x600
 
 .ORIG 0x200
 SysStack:	; System stack grows down from 0x200
