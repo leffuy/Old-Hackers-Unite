@@ -28,12 +28,14 @@ FMask2:		; Mask used for second digit
 .DATA	0x0F0
 FMask3:		; Mask for third digit
 .DATA	0xF00
+OvrD2:
+.DATA	0x60
 OvrD3:
 .DATA	0x0A00
 OvrD4:
 .DATA	0x2400
 TimeInc2:	; Amount to increase HEXTime by on overflow of 2nd digit
-.DATA	0xA0	; Can also be used for OvrD2
+.DATA	0xA0
 TimeInc3:	; Amount to increase HEXTime by on overflow of 3nd digit
 .DATA	0x600
 TimeInc1:       ; Increment digit 1
@@ -93,6 +95,14 @@ IntHand:
 	ADDI	A2,A2,0x6 
 
 SkipD1:
+	LW	A3,FMask2(GP)
+	AND	A3,A3,A2
+	LW	A4,OvrD2(GP)
+	BNE	A3,A4,SkipD2
+	LW	A3,TimeInc2(GP)
+	ADD	A2,A2,A3
+
+SkipD2:
 
 	XOR	A0,A0,A0
 	SW	A2,HEX(GP)
