@@ -23,9 +23,7 @@ Seconds:	; Holds the current seconds value
 HEXTime:	; Holds the 24h time in hex
 .DATA	0x1200
 SecCnt:		; Number of TCNT ticks in 1s
-.DATA	1000
-FMask1:		; Mask for first digit
-.DATA   0x00F
+.DATA	100
 FMask2:		; Mask used for second digit
 .DATA	0x0F0
 FMask3:		; Mask for third digit
@@ -87,23 +85,21 @@ IntHand:
 	BNE	A1,A0,skip
 
 	LW	A2,HEXTime(GP)
-        ADDI	A2,GP,0x1
+	ADDI	A2,A2,1
 	ADDI	A3,GP,0xF
 	AND	A3,A2,A3 
-        ADDI	A4,GP,0xA 
-        BNE	A3,A4,SkipD1 
+	ADDI	A4,GP,0xA 
+	BNE	A3,A4,SkipD1 
 	ADDI	A2,A2,0x6 
 
 SkipD1:
-;	LW A3,HEXTime(GP) 
-;	ADDI A3,GP,TimeInc1 
-;	SW A3,HEXTime(GP) 
 
-
+	XOR	A0,A0,A0
+	SW	A2,HEX(GP)
 skip:	SW	A0,LEDG(GP)
+	SW	A2,HEXTime(GP)
 	SW	A0,Seconds(GP)
-	; TODO: Update HEX Display...
-	
+
 	; Reset Interrupts for timer
 	ADDI	A0,GP,0x10
 	SW	A0,TCTL(GP)
