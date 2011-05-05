@@ -85,6 +85,7 @@ IntHand:
 
 	ADDI	A1,GP,60
 	BNE	A1,A0,skip
+	XOR	A0,A0,A0
 
 	LW	A2,HEXTime(GP)
 	ADDI	A2,A2,1
@@ -104,18 +105,8 @@ SkipD1:
 
 SkipD2:
 
-	XOR	A0,A0,A0
-	SW	A2,HEX(GP)
-
-
-
-
-
-SkipD2:
-	LW A3,FMask3(GP)
-	AND A3,A3, 
-
-skip:	SW	A0,LEDG(GP)
+skip:	SW	A2,HEX(GP)
+	SW	A0,LEDG(GP)
 	SW	A2,HEXTime(GP)
 	SW	A0,Seconds(GP)
 
