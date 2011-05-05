@@ -96,6 +96,13 @@ SkipD1:
 
 	XOR	A0,A0,A0
 	SW	A2,HEX(GP)
+
+
+
+
+
+
+
 skip:	SW	A0,LEDG(GP)
 	SW	A2,HEXTime(GP)
 	SW	A0,Seconds(GP)
