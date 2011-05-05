@@ -101,7 +101,9 @@ SkipD1:
 
 
 
-
+SkipD2:
+	LW A3,FMask3(GP)
+	AND A3,A3, 
 
 skip:	SW	A0,LEDG(GP)
 	SW	A2,HEXTime(GP)
