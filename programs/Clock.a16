@@ -117,8 +117,8 @@ SkipD3:
 	LW 	A3,FMask4(GP)
 	AND 	A3,A3,A2
 	LW 	A4,OvrD4
-      	BNE	
-
+      	BNE     A3,A4,skip	
+        XOR	A2,A2,A2
 
 skip:	SW	A0,LEDG(GP)
 	SW	A2,HEXTime(GP)
