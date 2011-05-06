@@ -15,9 +15,9 @@ LEDG:
 
 .ORIG 0x0	; Variables for clock go here.
 IntHandAddr:	; Pointer to interrupt handler
-.DATA   IntHand
+.DATA	IntHand
 SysStackAddr:
-.DATA   SysStack
+.DATA	SysStack
 Seconds:	; Holds the current seconds value
 .DATA	0
 HEXTime:	; Holds the 24h time in hex
@@ -25,7 +25,7 @@ HEXTime:	; Holds the 24h time in hex
 SecCnt:		; Number of TCNT ticks in 1s
 .DATA	100
 FMask2:		; Mask used for second digit
-.DATA	0x0F0
+.DATA	0xF0
 FMask3:		; Mask for third digit
 .DATA	0xF00
 FMask4:
@@ -33,15 +33,13 @@ FMask4:
 OvrD2:
 .DATA	0x60
 OvrD3:
-.DATA	0x0A00
+.DATA	0xA00
 OvrD4:
 .DATA	0x2400
 TimeInc2:	; Amount to increase HEXTime by on overflow of 2nd digit
 .DATA	0xA0
 TimeInc3:	; Amount to increase HEXTime by on overflow of 3nd digit
 .DATA	0x600
-TimeInc1:       ; Increment digit 1
-.DATA   0x006   
 
 
 .ORIG 0x200
@@ -86,42 +84,43 @@ IntHand:
 	ADDI	A0,A0,1
 
 	ADDI	A1,GP,60
-	BNE	A1,A0,skip
+	BNE	A1,A0,skip	; Test if seconds is 60
 	XOR	A0,A0,A0
 
-	LW	A2,HEXTime(GP)
+	LW	A2,HEXTime(GP)	; Load and increment 24H time
 	ADDI	A2,A2,1
+
 	ADDI	A3,GP,0xF
-	AND	A3,A2,A3 
-	ADDI	A4,GP,0xA 
-	BNE	A3,A4,SkipD1 
-	ADDI	A2,A2,0x6 
+	AND	A3,A2,A3
+	ADDI	R4,GP,0xA 
+	BNE	A3,R4,SkipD1	; Test if first digit overflowed (0xA)
+	ADDI	A2,A2,0x6	; if so add 6
 
 SkipD1:
 	LW	A3,FMask2(GP)
-	AND	A3,A3,A2
-	LW	A4,OvrD2(GP)
-	BNE	A3,A4,SkipD2
+	AND	A3,A2,A3
+	LW	R4,OvrD2(GP)
+	BNE	A3,R4,SkipD2	; Test if second digit overflowed (0x60)
 	LW	A3,TimeInc2(GP)
 	ADD	A2,A2,A3
 
 SkipD2:
 	LW 	A3,FMask3(GP)
 	AND 	A3,A3,A2
-	LW 	A4,OvrD3(GP)
-	BNE 	A3,A4,SkipD3
+	LW 	R4,OvrD3(GP)
+	BNE 	A3,R4,SkipD3	; Test if third digit overflowed (0xA00)
 	LW 	A3,TimeInc3(GP)
 	ADD 	A2,A2,A3
 
-; 4th and tricky digit
 SkipD3:
 	LW 	A3,FMask4(GP)
 	AND 	A3,A3,A2
-	LW 	A4,OvrD4(GP)
-      	BNE     A3,A4,skip	
-        XOR	A2,A2,A2
+	LW 	R4,OvrD4(GP)
+	BNE     A3,R4,skip	; Check if 0x2400	
+	XOR	A2,A2,A2
 
-skip:	SW	A2,HEX(GP)
+skip:
+	SW	A2,HEX(GP)	; Store variables, vals to display
 	SW	A0,LEDG(GP)
 	SW	A2,HEXTime(GP)
 	SW	A0,Seconds(GP)
