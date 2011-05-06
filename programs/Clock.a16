@@ -29,7 +29,7 @@ FMask2:		; Mask used for second digit
 FMask3:		; Mask for third digit
 .DATA	0xF00
 FMask4:
-.DATA	0xF000
+.DATA	0xFF00
 OvrD2:
 .DATA	0x60
 OvrD3:
@@ -108,16 +108,16 @@ SkipD1:
 SkipD2:
 	LW 	A3,FMask3(GP)
 	AND 	A3,A3,A2
-	LW 	A4,OvrD3
+	LW 	A4,OvrD3(GP)
 	BNE 	A3,A4,SkipD3
 	LW 	A3,TimeInc3(GP)
 	ADD 	A2,A2,A3
 
-;4th and tricky digit
+; 4th and tricky digit
 SkipD3:
 	LW 	A3,FMask4(GP)
 	AND 	A3,A3,A2
-	LW 	A4,OvrD4
+	LW 	A4,OvrD4(GP)
       	BNE     A3,A4,skip	
         XOR	A2,A2,A2
 
